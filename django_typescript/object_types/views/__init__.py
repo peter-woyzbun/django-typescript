@@ -1,0 +1,2 @@
+from django_typescript.object_types.views.method import ObjectMethodView
+from django_typescript.object_types.views.static_method import ObjectStaticMethodView

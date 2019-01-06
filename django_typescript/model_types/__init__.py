@@ -1,0 +1,2 @@
+from django_typescript.model_types.model_type import ModelType
+from django_typescript.model_types.view import ModelView
