@@ -121,8 +121,7 @@ class ModelType(object):
         """
         field_names = [f.name for f in self.model_inspector.concrete_fields] + \
                       [f.name for f in self.forward_relation_fields]
-
-
+        forward_relation_fields = {f.model_field.name: f for f in self.forward_relation_fields}
 
         class BaseSerializer(serializers.ModelSerializer):
             """
@@ -133,6 +132,11 @@ class ModelType(object):
 
             def validate(_self, attrs):
                 validate_model_type = getattr(self, "validate", None)
+                # for forward_relation_name, field in forward_relation_fields.items():
+                #     if forward_relation_name in attrs:
+                #         forward_relation_id = attrs[forward_relation_name]
+                #         if forward_relation_id:
+                #             attrs[]
 
                 if validate_model_type:
                     validate_model_type(**dict(attrs))

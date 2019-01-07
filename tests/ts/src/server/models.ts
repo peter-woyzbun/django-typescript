@@ -1,11 +1,22 @@
 import { serverClient } from './client'
-import { ResponseHandlers, PaginatedInstances, PaginatedObjects, PrimaryKey, foreignKeyField } from './core'
+import {
+    ResponseHandlers,
+    PaginatedInstances,
+    PaginatedObjects,
+    PrimaryKey,
+    foreignKeyField,
+    ModelFieldsSchema
+} from './core'
+
+
+export type FieldType = 'AutoField' | 'ManyToOneRel' | 'ForeignKey' | 'IntegerField' | 'CharField'
 
 
 // -------------------------
 // ThingQuerySet
 //
 // -------------------------
+
 
 export interface ThingQuerySetLookups {
     id?: number
@@ -224,16 +235,20 @@ export class Thing implements ThingFields {
     number?: number
 
 
-    data: ThingFields
+    public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
+        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
+        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false }
+
+    }
 
     constructor(data: ThingFields) {
-        this.data = data;
         Object.assign(this, data);
     }
 
     static objects = ThingQuerySet;
 
-    public pk(): PrimaryKey {
+    public pk(): number {
         return this.id
     }
 
@@ -272,6 +287,7 @@ export class Thing implements ThingFields {
 // ThingChildQuerySet
 //
 // -------------------------
+
 
 export interface ThingChildQuerySetLookups {
     id?: number
@@ -490,19 +506,24 @@ export class ThingChild implements ThingChildFields {
     readonly id: number
     name?: string
     number?: number
-    @foreignKeyField(() => Thing) parent
+    @foreignKeyField(() => Thing) parent?: Thing
 
 
-    data: ThingChildFields
+    public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
+        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
+        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false },
+        parent_id: { fieldName: 'parent_id', fieldType: 'ForeignKey', nullable: false, isReadOnly: false, relatedModel: Thing }
+
+    }
 
     constructor(data: ThingChildFields) {
-        this.data = data;
         Object.assign(this, data);
     }
 
     static objects = ThingChildQuerySet;
 
-    public pk(): PrimaryKey {
+    public pk(): number {
         return this.id
     }
 

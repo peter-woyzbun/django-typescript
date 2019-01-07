@@ -106,12 +106,28 @@ class TestIntegration(IntegrationTestCase):
         self._run_ts_test(test_name='filter')
 
     @override_settings(ROOT_URLCONF=__name__)
+    def test_filter_startswith(self):
+        self._run_ts_test(test_name='filter_startswith')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_filter_in(self):
+        self._run_ts_test(test_name='filter_in')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_exclude(self):
+        self._run_ts_test(test_name='exclude')
+
+    @override_settings(ROOT_URLCONF=__name__)
     def test_filter_or(self):
         self._run_ts_test(test_name='filter_or')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_get_reverse_related(self):
         self._run_ts_test(test_name='get_reverse_related')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_get_forward_relation(self):
+        self._run_ts_test(test_name='get_forward_relation')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_filter_reverse_related(self):

@@ -38,9 +38,9 @@ export enum FieldType{
 // -------------------------
 
 
-export interface FieldSchema{
+export interface FieldSchema<FieldTypes>{
     readonly fieldName: string;
-    readonly fieldType: FieldType;
+    readonly fieldType: FieldTypes;
     readonly nullable: boolean;
     readonly isReadOnly: boolean;
     readonly description?: string;
@@ -54,8 +54,8 @@ export interface FieldSchema{
 //
 // -------------------------
 
-export interface ModelFieldsSchema{
-    [key: string]: FieldSchema
+export interface ModelFieldsSchema<FieldTypes>{
+    [key: string]: FieldSchema<FieldTypes>
 }
 
 
@@ -74,34 +74,39 @@ export const foreignKeyField = (RelatedModel: () => any) =>
     const idPropertyKey = propertyKey + '_id';
 
     let value = target[propertyKey];
+    let cachedValue = null;
     let idValue = target[idPropertyKey];
 
     const getter = async () => {
-        const _RelatedModel = RelatedModel();
-        if (value){ return value }
-        if (idValue){
-            value = await _RelatedModel.objects.get(idValue);
-            return value
-        }
-        return undefined
+        return this[idPropertyKey]
+        // const _RelatedModel = RelatedModel();
+        // if (value){ return value }
+        // if (idValue){
+        //     value = await _RelatedModel.objects.get(idValue);
+        //     return value
+        // }
+        // return undefined
     };
 
     const setter = (val) => {
-        const _RelatedModel = RelatedModel();
-        if (val instanceof _RelatedModel){
-            value = val
-        } else if (typeof val === 'number'){
-            idValue = val
-        } else {
-            value = undefined;
-            idValue = undefined;
-        }
+        cachedValue = val;
     };
 
 
     Object.defineProperty(target, propertyKey, {
-        get: getter,
-        set: setter
+
+        get: async function() {
+            if (cachedValue){
+                return cachedValue
+            }
+            const _RelatedModel = RelatedModel();
+            value = await _RelatedModel.objects.get(this[idPropertyKey]);
+            this[propertyKey] = value;
+            return value
+         },
+        set: function (val) {
+            cachedValue = val;
+        }
     });
 
   };

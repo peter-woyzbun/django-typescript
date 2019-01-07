@@ -57,12 +57,19 @@ class Transpiler(object):
 
     def _transpile_model_types(self):
         model_type_sources = []
+        field_types = []
         for model_type in self.interface.model_types():
             model_type_transpiler = ModelTypeTranspiler(model_type=model_type, model_pool=self.interface.models())
             model_type_sources.append(model_type_transpiler.transpile())
+            for field in model_type.fields:
+                field_types.append(field.model_field.__class__.__name__)
+
         models_file = open(os.path.join(self.destination_dir, self.MODELS_FILENAME), "w+")
         models_template = TypeScriptTemplate.open(templates.MODELS_TEMPLATE_FILE)
-        source = models_template.render(models="\n".join(model_type_sources))
+        source = models_template.render(
+            field_types=" | ".join([f"'{field_type}'" for field_type in set(field_types)]),
+            models="\n".join(model_type_sources)
+        )
         models_file.write(source)
         models_file.close()
         self._try_ts_format(self.MODELS_FILENAME)

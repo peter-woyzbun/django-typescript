@@ -55,12 +55,43 @@ test('filter_or', async t => {
 	t.is(retrievedThings.length, 2);
 });
 
+test('filter_startswith', async t => {
+    const createdThing = await Thing.objects.create({name: 'test_thing'});
+    const createdThing2 = await Thing.objects.create({name: 'test_thing_2'});
+    const retrievedThings = await Thing.objects.filter({name__startswith: 'test'}).retrieve();
+	t.is(retrievedThings.length, 2);
+});
+
+test('filter_in', async t => {
+    const createdThing = await Thing.objects.create({name: 'test_thing'});
+    const createdThing2 = await Thing.objects.create({name: 'test_thing_2'});
+    const retrievedThings = await Thing.objects.filter({name__in: ['test_thing', 'test_thing_2']}).retrieve();
+	t.is(retrievedThings.length, 2);
+});
+
+
+test('exclude', async t => {
+    const createdThing = await Thing.objects.create({name: 'test_thing'});
+    const createdThing2 = await Thing.objects.create({name: 'test_thing_2'});
+    const retrievedThings = await Thing.objects.exclude({name: 'test_thing'}).retrieve();
+	t.is(retrievedThings.length, 1);
+    t.is(retrievedThings[0].name, 'test_thing_2');
+});
+
 
 test('get_reverse_related', async t => {
     const createdThing = await Thing.objects.create({name: 'test_thing'});
     const childThing = await ThingChild.objects.create({parent_id: createdThing.pk()});
     const childThings = await createdThing.children().retrieve();
 	t.is(childThings.length, 1);
+});
+
+test('get_forward_relation', async t => {
+    const createdThing = await Thing.objects.create({name: 'test_thing'});
+    const childThing = await ThingChild.objects.create({parent_id: createdThing.pk()});
+
+    const parentThing = await childThing.parent;
+	t.is(createdThing.pk(), parentThing.pk());
 });
 
 

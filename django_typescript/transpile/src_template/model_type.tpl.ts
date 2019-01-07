@@ -7,6 +7,7 @@
 // -------------------------
 >*/
 
+
 export interface __$lookups_interface_name__ {
     /*<
     {{ queryset_lookups }}
@@ -118,16 +119,19 @@ export class __$model_name__ implements __$field_interface_name__{
     {{ model_class_types }}
     >*/
 
-    data: __$field_interface_name__
+    public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
+         /*<
+        {{ field_schemas }}
+        >*/
+    }
 
     constructor(data: __$field_interface_name__){
-        this.data = data;
         Object.assign(this, data);
     }
 
     static objects = __$queryset_name__;
 
-    public pk(): PrimaryKey{
+    public pk(): __$pk_type__{
         /*< return  this.{{ pk_field_name }}  >*/
     }
 

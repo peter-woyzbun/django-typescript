@@ -1,0 +1,2 @@
+include django_typescript/transpile/src_template/*.ts
+include django_typescript/transpile/src_template/core/*.ts
