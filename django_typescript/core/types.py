@@ -71,3 +71,9 @@ def field_is_relation(field: ModelField) -> bool:
     return isinstance(field, REVERSE_RELATION_FIELDS + FORWARD_RELATION_FIELDS + (models.ManyToManyRel, ))
 
 
+# =================================
+# Prefetch Tree
+# ---------------------------------
+
+PrefetchTree = typing.Union[str, typing.Dict[str, 'PrefetchTree']]
+

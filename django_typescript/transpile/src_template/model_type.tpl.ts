@@ -7,6 +7,10 @@
 >*/
 
 
+export type __$prefetch_type_name__ = '{{ prefetch_type }}'
+
+
+
 export interface __$lookups_interface_name__ {
     /*<{{ queryset_lookups }}>*/
 }
@@ -16,12 +20,22 @@ export class __$queryset_name__ {
     protected lookups: __$lookups_interface_name__;
     protected excludedLookups: __$lookups_interface_name__;
     protected _or: __$queryset_name__[] = [];
+    protected _prefetch: __$prefetch_type_name__[];
 
 
     constructor(lookups: __$lookups_interface_name__ = {}, excludedLookups: __$lookups_interface_name__ = {}){
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
 
+    public prefetch(...prefetchKeys: __$prefetch_type_name__[]): this{
+        const existingPrefetch: __$prefetch_type_name__[] = this._prefetch ? (this._prefetch) : ([] as __$prefetch_type_name__[]);
+        this._prefetch = [...existingPrefetch, ...prefetchKeys];
+        return this
+    }
+
+    public static all(): __$queryset_name__{
+        return new __$queryset_name__()
     }
 
     public static filter(lookups: Partial<__$lookups_interface_name__>): __$queryset_name__{
@@ -45,8 +59,12 @@ export class __$queryset_name__ {
         return this
     }
 
-    public static async get(primaryKey: __$pk_type__): Promise<ServerPayload<__$model_name__>>{
-        let [responseData, statusCode, err] = await serverClient.get(`'{{ get_url }}'`);
+    public static async get(primaryKey: __$pk_type__, ...prefetchKeys: __$prefetch_type_name__[]): Promise<ServerPayload<__$model_name__>>{
+        let urlQuery = '';
+        if (prefetchKeys){
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.get(`'{{ get_url }}'`, urlQuery);
         if (statusCode === 200){
             return [new __$model_name__(responseData), responseData, statusCode, err]
         }
@@ -85,7 +103,10 @@ export class __$queryset_name__ {
     }
 
     public async retrieve(): Promise<ServerPayload<__$model_name__[]>>{
-        const urlQuery = "query=" + JSON.stringify(this.serialize());
+        let urlQuery = "query=" + JSON.stringify(this.serialize());
+        if (this._prefetch){
+            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
+        }
         let [responseData, statusCode, err]= await serverClient.get(`'{{ list_url}}'`, urlQuery);
         if (statusCode in SuccessfulHttpStatusCodes){
             return [responseData.map((data) => new __$model_name__(data) ), responseData, statusCode, err]
@@ -94,7 +115,10 @@ export class __$queryset_name__ {
     }
 
     public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<__$model_name__>>>{
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        if (this._prefetch){
+            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
+        }
         let [responseData, statusCode, err] = await serverClient.get(`'{{ list_url}}'`, urlQuery);
         if (statusCode in SuccessfulHttpStatusCodes){
             return [{
@@ -152,8 +176,8 @@ export class __$model_name__ implements __$field_interface_name__{
     }
 
      /*<{% for reverse_relation in reverse_relations %}
-      public {{ reverse_relation.model_field.name }}(lookups: {{ reverse_relation.related_model_name }}QuerySetLookups = {}){
-           return new {{ reverse_relation.related_model_name }}QuerySet({...lookups, ...{ {{ reverse_relation.reverse_lookup_key }}: this.pk()}})
+      public {{ reverse_relation.name }}(lookups: {{ reverse_relation.lookups_type }} = {}){
+           return new {{ reverse_relation.queryset_name }}({...lookups, ...{ {{ reverse_relation.lookup_key }}: this.pk()}})
       }
       {% endfor %}>*/
 
@@ -164,7 +188,7 @@ export class __$model_name__ implements __$field_interface_name__{
       {% endfor %}>*/
 
      /*<{% for static_method in static_methods %}
-      public static async {{ static_method.name }}(data: {{ static_method.sig_interface }}){
+      public static async {{ static_method.name }}({{ static_method.sig_interface }}){
            return await serverClient.post(`{{ static_method.url}}`, data);
       }
       {% endfor %}>*/

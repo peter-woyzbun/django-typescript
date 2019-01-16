@@ -1,7 +1,7 @@
 from typing import Callable, Dict
 
+from django_typescript.core import types
 from django_typescript.core.utils.signature import Signature
-from django_typescript.model_types.field import ModelTypeField
 
 
 # =================================
@@ -10,10 +10,10 @@ from django_typescript.model_types.field import ModelTypeField
 
 class ModelTypeValidator(object):
 
-    def __init__(self, validate_func: Callable, forward_relation_fields: Dict[str, ModelTypeField]):
+    def __init__(self, validate_func: Callable, forward_rel_model_fields: Dict[str, types.ModelField]):
         self.validate_func = validate_func
         self.func_sig = Signature(callable_=validate_func)
-        self.forward_relation_fields = forward_relation_fields
+        self.forward_rel_model_fields = forward_rel_model_fields
 
     @property
     def validator_field_names(self):
@@ -21,12 +21,13 @@ class ModelTypeValidator(object):
 
     def _resolve_forward_relations(self, field_values: dict):
         resolved_field_values = {}
+        print(self.forward_rel_model_fields)
         for field_name, value in field_values.items():
 
-            if field_name in self.forward_relation_fields:
-                forward_relation_field = self.forward_relation_fields[field_name]
-                pk_value = field_values[field_name]
-                resolved_field_values[forward_relation_field.model_field.name] = forward_relation_field.model_field.related_model.objects.get(pk=pk_value)
+            if field_name in self.forward_rel_model_fields:
+                model_field = self.forward_rel_model_fields[field_name]
+                pk_value = field_values[model_field.get_attname()]
+                resolved_field_values[model_field.name] = model_field.related_model.objects.get(pk=pk_value)
             else:
                 if field_name in self.validator_field_names:
                     resolved_field_values[field_name] = value

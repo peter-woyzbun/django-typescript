@@ -1,13 +1,20 @@
-from typing import Type
+from typing import Type, List
+from collections import namedtuple
 
 from django_typescript.object_types.object_type import ObjectType
 from django_typescript.core.utils.typescript_template import TypeScriptTemplate
 from django_typescript.core.types import ModelPool
-from django_typescript.transpile.method import MethodTranspiler
 from django_typescript.transpile import templates
 from django_typescript.core import types
-from django_typescript.transpile.common import render_type_declaration
-from django_typescript.transpile.type_transpiler import TypeTranspiler
+from django_typescript.transpile.common import render_type_declaration, method_sig_interface
+from django_typescript.transpile.field_type import FieldTypeTranspiler
+
+
+# =================================
+# Utils
+# ---------------------------------
+
+ObjectMethod = namedtuple('ObjectMethod', ['name', 'sig_interface', 'url'])
 
 
 # =================================
@@ -37,30 +44,34 @@ class ObjectTypeTranspiler(object):
                     name=field_name,
                     optional=field.allow_null,
                     readonly=field.read_only,
-                    type_=TypeTranspiler.transpile(field))
+                    type_=FieldTypeTranspiler.transpile(field))
             )
         return "\n".join(type_declarations)
 
-    def _methods(self):
+    @property
+    def _url_prefix(self):
+        return self.object_type.base_url() + "/"
+
+    def _methods(self) -> List[ObjectMethod]:
         methods = []
         for method_view in self.object_type.method_views():
             methods.append(
-                MethodTranspiler(
+                ObjectMethod(
                     name=method_view.name,
-                    url=self.object_type.base_url() + "/" + method_view.url_path,
-                    arg_serializer_cls=method_view.arg_serializer_cls,
+                    url=self._url_prefix + method_view.endpoint.url(),
+                    sig_interface=method_sig_interface(method_view.arg_serializer_cls),
                 )
             )
         return methods
 
-    def _static_methods(self):
+    def _static_methods(self) -> List[ObjectMethod]:
         static_methods = []
         for static_method_view in self.object_type.static_method_views():
             static_methods.append(
-                MethodTranspiler(
+                ObjectMethod(
                     name=static_method_view.name,
-                    url=self.object_type.base_url() + "/" + static_method_view.url_path,
-                    arg_serializer_cls=static_method_view.arg_serializer_cls,
+                    url=self._url_prefix + static_method_view.endpoint.url(),
+                    sig_interface=method_sig_interface(static_method_view.arg_serializer_cls),
                 )
             )
         return static_methods

@@ -51,7 +51,3 @@ class TestModelType(TestCase):
         self.assertTrue(child_thing.parent is not None)
         self.assertEqual(child_thing.parent.id, parent_thing.id)
 
-    def test_relation_field_init(self):
-        model_type = ModelType(model_cls=ThingChild)
-        self.assertEqual(len(model_type.forward_relation_fields), 1)
-        self.assertEqual(model_type.forward_relation_fields[0].name, 'parent_id')

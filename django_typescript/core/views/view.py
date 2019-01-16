@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from django_typescript.core.types import PermissionClasses
+from django_typescript.core import endpoints
 
 
 # =================================
@@ -13,8 +14,8 @@ class View(object):
 
     REQUEST_METHOD: str = None
 
-    def __init__(self, url_path: str, permission_classes: PermissionClasses = None):
-        self.url_path = url_path
+    def __init__(self, endpoint: endpoints.Endpoint, permission_classes: PermissionClasses = None):
+        self.endpoint = endpoint
         self.permission_classes = permission_classes
 
     def _view_function(self):

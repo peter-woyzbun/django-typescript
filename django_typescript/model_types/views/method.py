@@ -2,9 +2,9 @@ from typing import Callable, Type
 
 from rest_framework import serializers
 
+from django_typescript.core import endpoints
 from django_typescript.core.views import MethodViewBase, Response, status
-from django_typescript.model_types.view import ModelView
-from django_typescript.core.utils.utils import underscore_to_dash
+from django_typescript.core.utils import underscore_to_dash
 
 
 # =================================
@@ -32,7 +32,7 @@ class ModelMethodView(MethodViewBase):
         self.model_serializer_cls = model_serializer_cls
         MethodViewBase.__init__(self, func=func, arg_serializer_cls=arg_serializer_cls,
                                 permission_classes=permission_classes,
-                                url_path=f'{underscore_to_dash(func.__name__)}/{ModelView.PK_PARAMETER}/',
+                                endpoint=endpoints.Endpoint(underscore_to_dash(func.__name__), endpoints.Param),
                                 **serializer_fields)
 
     @property

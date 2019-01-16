@@ -1,7 +1,7 @@
 import test from 'ava';
 
 import {serverClient} from "./server/client";
-import {Thing, ThingChild} from './server/models'
+import {Thing, ThingChild, ThingChildChild} from './server/models'
 import {GenericObjectType} from "./server/objects";
 
 
@@ -96,6 +96,36 @@ test('get_forward_relation', async t => {
     const parentThing = await childThing.parent;
 	t.is(createdThing.pk(), parentThing.pk());
 });
+
+test('get_forward_relation_prefetch', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [childThing] = await ThingChild.objects.create({parent_id: createdThing.pk()});
+    const [childThingWPrefetch] = await ThingChild.objects.get(childThing.pk(), 'parent');
+    // No `await` should be required.
+    const parentThing = childThingWPrefetch.parent;
+	t.is(createdThing.pk(), parentThing.pk());
+});
+
+test('get_nested_forward_relation_prefetch', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [childThing] = await ThingChild.objects.create({parent_id: createdThing.pk()});
+    const [childChildThing] = await ThingChildChild.objects.create({parent_id: childThing.pk()});
+    const [childChildThingWPrefetch] = await ThingChildChild.objects.get(childChildThing.pk(), {parent: 'parent'});
+    // No `await` should be required.
+    const parentThing = childChildThingWPrefetch.parent.parent;
+	t.is(createdThing.pk(), parentThing.pk());
+});
+
+test('get_forward_relation_prefetch_list', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [childThing1] = await ThingChild.objects.create({parent_id: createdThing.pk()});
+    const [childThing2] = await ThingChild.objects.create({parent_id: createdThing.pk()});
+    const [childThingsWPrefetch] = await ThingChild.objects.all().prefetch('parent').retrieve();
+    // No `await` should be required.
+	t.is(childThingsWPrefetch[0].parent.pk(), createdThing.pk());
+	t.is(childThingsWPrefetch[1].parent.pk(), createdThing.pk());
+});
+
 
 test('filter_reverse_related', async t => {
     const [createdThing] = await Thing.objects.create({name: 'test_thing'});

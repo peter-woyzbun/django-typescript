@@ -22,7 +22,10 @@ export class GenericObjectType implements GenericObjectTypeFields {
         Object.assign(this, data);
     }
 
-    public async object_method(data: data: { add_value: number }) {
+
+    public async object_method(data: { add_value: number }) {
+
+
         const postData = {
             __init__: {
                 value: this.value,
@@ -30,10 +33,14 @@ export class GenericObjectType implements GenericObjectTypeFields {
             },
             __args__: data
         }
+
+
         return await serverClient.post(`generic-object-type/object-method/`, postData);
     }
 
-    public async object_method_w_arg_serializers(data: data: { a_datetime: any }) {
+    public async object_method_w_arg_serializers(data: { a_datetime: any }) {
+
+
         const postData = {
             __init__: {
                 value: this.value,
@@ -41,11 +48,13 @@ export class GenericObjectType implements GenericObjectTypeFields {
             },
             __args__: data
         }
+
+
         return await serverClient.post(`generic-object-type/object-method-w-arg-serializers/`, postData);
     }
 
 
-    public static async object_static_method(data: data: { a: string, b: string }) {
+    public static async object_static_method(data: { a: string, b: string }) {
         return await serverClient.post(`generic-object-type/object-static-method/`, data);
     }
 

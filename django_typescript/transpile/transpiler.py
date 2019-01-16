@@ -6,8 +6,8 @@ from distutils.file_util import copy_file
 
 from django_typescript.core.utils.typescript_template import TypeScriptTemplate
 from django_typescript.transpile import templates
-from django_typescript.transpile.object_type import ObjectTypeTranspiler
 from django_typescript.transpile.model_type import ModelTypeTranspiler
+from django_typescript.transpile.object_type import ObjectTypeTranspiler
 from django_typescript.interface import Interface
 
 
@@ -60,8 +60,8 @@ class Transpiler(object):
         for model_type in self.interface.model_types():
             model_type_transpiler = ModelTypeTranspiler(model_type=model_type, model_pool=self.interface.models())
             model_type_sources.append(model_type_transpiler.transpile())
-            for field in model_type.fields:
-                field_types.append(field.model_field.__class__.__name__)
+            for field_info in model_type.serializer.field_info:
+                field_types.append(field_info.model_field.__class__.__name__)
 
         models_file = open(os.path.join(self.destination_dir, self.MODELS_FILENAME), "w+")
         models_template = TypeScriptTemplate.open(templates.MODELS_TEMPLATE_FILE)
@@ -84,3 +84,4 @@ class Transpiler(object):
         objects_file.write(source)
         objects_file.close()
         self._try_ts_format(self.OBJECTS_FILENAME)
+

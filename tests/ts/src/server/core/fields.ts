@@ -58,22 +58,39 @@ export const foreignKeyField = (RelatedModel: () => any) =>
     let value = target[propertyKey];
     let cachedValue = null;
 
+
+
+    const syncGet = () => {
+        return cachedValue
+    }
+
     Object.defineProperty(target, propertyKey, {
 
-        get: async function() {
+        get: function() {
             if (cachedValue){
                 return cachedValue
             }
-            const idValue = this[idPropertyKey];
+            const asyncGet = async () => {
+                    const idValue = this[idPropertyKey];
             if (idValue){
                 const _RelatedModel = RelatedModel();
             [value] = await _RelatedModel.objects.get(this[idPropertyKey]);
             this[propertyKey] = value;
             return value
             }
+            };
+            return asyncGet()
          },
         set: function (val) {
-            cachedValue = val;
+            const _RelatedModel = RelatedModel();
+            if (val instanceof _RelatedModel){
+                cachedValue = val;
+            } else {
+                if (typeof val ==='object'){
+                    cachedValue = new _RelatedModel(val);
+                }
+            }
+
         }
     });
 

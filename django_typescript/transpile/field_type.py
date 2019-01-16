@@ -17,7 +17,7 @@ from django_typescript.core import typescript_types
 # Type Transpiler
 # ---------------------------------
 
-class TypeTranspiler(object):
+class FieldTypeTranspiler(object):
 
     _DEFAULT_TYPE = lambda x: typescript_types.ANY
 
@@ -28,8 +28,8 @@ class TypeTranspiler(object):
         serializers.CharField: lambda x: typescript_types.STRING,
         serializers.FloatField: lambda x: typescript_types.NUMBER,
         serializers.JSONField: lambda x: typescript_types.OBJECT,
-        serializers.ListField: lambda x: TypeTranspiler.transpile(x.child),
-        serializers.PrimaryKeyRelatedField: lambda x: TypeTranspiler.transpile(x.queryset.model),
+        serializers.ListField: lambda x: FieldTypeTranspiler.transpile(x.child),
+        serializers.PrimaryKeyRelatedField: lambda x: FieldTypeTranspiler.transpile(x.queryset.model),
         # Django model field types
         JSONField: lambda x: typescript_types.OBJECT,
         models.CharField: lambda x: typescript_types.STRING,
@@ -55,7 +55,7 @@ class TypeTranspiler(object):
         models.OneToOneField: lambda x: x.related_model.__name__,
         models.ManyToManyField: lambda x: x.related_model.__name__,
         models.ManyToOneRel: lambda x: x.related_model.__name__,
-        ArrayField: lambda x: TypeTranspiler.transpile(x.base_field) + "[]",
+        ArrayField: lambda x: FieldTypeTranspiler.transpile(x.base_field) + "[]",
         # Model type
         models.Model: lambda x: x.__name__,
         # Container types

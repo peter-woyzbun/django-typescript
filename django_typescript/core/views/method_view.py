@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from django_typescript.core.views.view import View
 from django_typescript.core.utils.signature import Signature
+from django_typescript.core import endpoints
 
 
 # =================================
@@ -12,7 +13,7 @@ from django_typescript.core.utils.signature import Signature
 
 class MethodViewBase(View):
 
-    def __init__(self, func: Callable, url_path: str, permission_classes=None,
+    def __init__(self, func: Callable, endpoint: endpoints.Endpoint, permission_classes=None,
                  arg_serializer_cls: Type[serializers.Serializer]=None, **serializer_fields: serializers.Field):
         """
 
@@ -32,7 +33,7 @@ class MethodViewBase(View):
         self.func_sig = Signature(callable_=func)
         self._arg_serializer_cls = arg_serializer_cls
         self.serializer_fields = serializer_fields
-        View.__init__(self, url_path=url_path, permission_classes=permission_classes)
+        View.__init__(self, endpoint=endpoint, permission_classes=permission_classes)
 
         self._validate_serializer_cls()
 

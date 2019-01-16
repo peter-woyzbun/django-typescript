@@ -5,18 +5,19 @@ from django.db import models
 from rest_framework import serializers
 from django.urls import path
 
+from django_typescript.model_types.serializer import ModelTypeSerializer
 from django_typescript.core.model_inspector import ModelInspector
-from django_typescript.model_types.field import ModelTypeField
 from django_typescript.core import types
-from django_typescript.model_types.lookup_tree import LookupTree
-from django_typescript.model_types.validator import ModelTypeValidator
 from django_typescript.model_types.views import (CreateView,
-                                                 DeleteView,
-                                                 GetView,
-                                                 ListView,
-                                                 ModelMethodView,
-                                                 ModelStaticMethodView,
-                                                 UpdateView)
+                                         DeleteView,
+                                         GetView,
+                                         ListView,
+                                         ModelMethodView,
+                                         ModelStaticMethodView,
+                                         UpdateView)
+
+
+URL_PARAM = '<pk>'
 
 
 # =================================
@@ -31,7 +32,6 @@ class ModelType(object):
     generated appropriately.
 
     """
-
     _MODEL_CLS: types.ModelClass = None
 
     _LOOKUP_TREE: types.PermissionClasses = None
@@ -41,8 +41,7 @@ class ModelType(object):
     _DELETE_PERMISSIONS: types.PermissionClasses = None
     _UPDATE_PERMISSIONS: types.PermissionClasses = None
 
-    def __init__(self, model_cls: typing.Type[models.Model],
-                 lookup_tree: LookupTree = None, create_permissions: types.PermissionClasses = None,
+    def __init__(self, model_cls: typing.Type[models.Model], create_permissions: types.PermissionClasses = None,
                  get_permissions: types.PermissionClasses = None, delete_permissions: types.PermissionClasses = None,
                  update_permissions: types.PermissionClasses = None):
 
@@ -51,7 +50,6 @@ class ModelType(object):
         Parameters
         ----------
         model_cls: The django `Model` class this `ModelType` represents.
-        lookup_tree
         create_permissions
         get_permissions
         delete_permissions
@@ -60,32 +58,31 @@ class ModelType(object):
 
         self.model_cls = model_cls
         self.model_inspector = ModelInspector(model_cls=model_cls)
-        self.lookup_tree = lookup_tree if lookup_tree is not None else LookupTree(tree=[])
-        self.forward_relation_fields: typing.List[ModelTypeField] = []
-        self.reverse_relation_fields: typing.List[ModelTypeField] = []
-        self.concrete_fields: typing.List[ModelTypeField] = []
-        self.field_map: typing.Dict[str, ModelTypeField] = {}
-        self.serializer_cls: types.ModelSerializerClass = None
+        self.serializer: ModelTypeSerializer = ModelTypeSerializer(model_cls=model_cls,
+                                                                   validator=getattr(self, "validate", None))
 
-        self._initialize()
-
-        self.create_view = CreateView(serializer_cls=self.serializer_cls, permission_classes=create_permissions)
-        self.delete_view = DeleteView(serializer_cls=self.serializer_cls, permission_classes=delete_permissions)
-        self.get_view = GetView(serializer_cls=self.serializer_cls, permission_classes=get_permissions)
-        self.list_view = ListView(serializer_cls=self.serializer_cls, permission_classes=get_permissions)
-        self.update_view = UpdateView(serializer_cls=self.serializer_cls, permission_classes=update_permissions)
+        self.create_view = CreateView(serializer=self.serializer,
+                                      serializer_cls=self.serializer.base_serializer_cls,
+                                      permission_classes=create_permissions)
+        self.delete_view = DeleteView(serializer=self.serializer,
+                                      serializer_cls=self.serializer.base_serializer_cls,
+                                      permission_classes=delete_permissions)
+        self.get_view = GetView(serializer=self.serializer, serializer_cls=self.serializer.base_serializer_cls,
+                                permission_classes=get_permissions)
+        self.list_view = ListView(serializer=self.serializer, serializer_cls=self.serializer.base_serializer_cls,
+                                  permission_classes=get_permissions)
+        self.update_view = UpdateView(serializer=self.serializer, serializer_cls=self.serializer.base_serializer_cls,
+                                      permission_classes=update_permissions)
 
     def __init_subclass__(cls, **kwargs):
         model_cls = kwargs.get('model_cls', None)
         if model_cls is None:
             raise AssertionError("No `model_cls` provided in `ModelType` class-init keyword arguments.")
-        lookup_tree = kwargs.get('lookup_tree')
         create_permissions = kwargs.get('create_permissions')
         get_permissions = kwargs.get('get_permissions')
         delete_permissions = kwargs.get('delete_permissions')
         update_permissions = kwargs.get('update_permissions')
         cls._MODEL_CLS = model_cls
-        cls._LOOKUP_TREE = lookup_tree
         cls._CREATE_PERMISSIONS = create_permissions
         cls._GET_PERMISSIONS = get_permissions
         cls._DELETE_PERMISSIONS = delete_permissions
@@ -93,96 +90,18 @@ class ModelType(object):
 
     @classmethod
     def as_type(cls) -> 'ModelType':
-        type_ = cls(model_cls=cls._MODEL_CLS, lookup_tree=cls._LOOKUP_TREE,
-                    create_permissions=cls._CREATE_PERMISSIONS, get_permissions=cls._GET_PERMISSIONS,
-                    delete_permissions=cls._DELETE_PERMISSIONS, update_permissions=cls._UPDATE_PERMISSIONS)
+        type_ = cls(model_cls=cls._MODEL_CLS,create_permissions=cls._CREATE_PERMISSIONS,
+                    get_permissions=cls._GET_PERMISSIONS, delete_permissions=cls._DELETE_PERMISSIONS,
+                    update_permissions=cls._UPDATE_PERMISSIONS)
         return type_
+
+    @property
+    def serializer_cls(self):
+        return self.serializer.base_serializer_cls
 
     @property
     def model_fields(self) -> typing.List[types.ModelField]:
         return self.model_cls._meta.get_fields()
-
-    def _initialize(self):
-        self._create_relation_fields()
-        self._make_serializer_cls()
-        self._create_concrete_fields()
-        self._create_field_map()
-
-    def _create_relation_fields(self):
-        for model_field in self.model_inspector.forward_relation_fields:
-            self.forward_relation_fields.append(ModelTypeField.for_relation(model_field=model_field))
-        for model_field in self.model_inspector.reverse_relation_fields:
-            self.reverse_relation_fields.append(ModelTypeField.for_relation(model_field=model_field))
-
-    def _make_serializer_cls(self):
-        """
-        Build the DRF `ModelSerializer` class for this `ModelType`.
-
-        Returns
-        -------
-
-        """
-        field_names = [f.name for f in self.model_inspector.concrete_fields] + \
-                      [f.name for f in self.forward_relation_fields]
-
-        valid_field_names = [f.name for f in self.model_inspector.concrete_fields] + \
-                      [f.name for f in self.forward_relation_fields] + \
-                        [f.model_field.name for f in self.forward_relation_fields]
-        forward_relation_fields = {f.serializer_field_name: f for f in self.forward_relation_fields}
-
-        class BaseSerializer(serializers.ModelSerializer):
-            """
-            This is used to auto-generate the 'concrete' fields for this
-            `ModelType`'s `model_cls`.
-
-            """
-
-            def validate(_self, attrs):
-                validate_model_type = getattr(self, "validate", None)
-                if validate_model_type:
-
-                    validator = ModelTypeValidator(validate_func=validate_model_type,
-                                                   forward_relation_fields=forward_relation_fields)
-                    assert len(set(validator.validator_field_names) - set(valid_field_names)) == 0, (
-                        'One or more arguments of provided `validate` method does not correspond to a field name.'
-                    )
-                    validator.validate(**dict(attrs))
-                return serializers.ModelSerializer.validate(_self, attrs)
-
-            class Meta:
-                model = self.model_cls
-                fields = field_names
-
-        # The base serializer is sub-classed in order to replace any auto-generated
-        # forward relation field serializers with the appropriate serializer field.
-        # The default behaviour of DRF for a foreign key or one-to-one field is to
-        # create a readonly field for `<fk_field_name>_id` (if given in `Meta.fields`).
-        forward_relation_field_serializers = {
-            f.name: f.serializer_field for f in self.forward_relation_fields
-        }
-        serializer_cls = type("ArgSerializer", (BaseSerializer,), forward_relation_field_serializers)
-        serializer_cls = self._finalize_serializer_cls(serializer_cls=serializer_cls)
-        self.serializer_cls = serializer_cls
-
-    def _finalize_serializer_cls(self, serializer_cls: types.SerializerClass) -> types.SerializerClass:
-        """
-        This method can be overriden in order to modify the serializer class
-        for this `ModelType`. Note that this requires using a class-based
-        `ModelType` definition.
-
-        """
-        return serializer_cls
-
-    def _create_concrete_fields(self):
-        serializer_fields = self.serializer_cls().get_fields()
-        for model_field in self.model_inspector.concrete_fields:
-            self.concrete_fields.append(
-                ModelTypeField(model_field=model_field, serializer_field=serializer_fields[model_field.name])
-            )
-
-    def _create_field_map(self):
-        for field in self.fields:
-            self.field_map[field.name] = field
 
     @property
     def method_views(self):
@@ -236,22 +155,22 @@ class ModelType(object):
         :return:
         """
         urlpatterns = [
-            path(self.create_view.url_path, self.create_view.view(), name='create'),
-            path(self.delete_view.url_path, self.delete_view.view(), name='delete'),
-            path(self.get_view.url_path, self.get_view.view(), name='get'),
-            path(self.list_view.url_path, self.list_view.view(), name='list'),
-            path(self.update_view.url_path, self.update_view.view(), name='update'),
+            path(self.create_view.endpoint.url(), self.create_view.view(), name='create'),
+            path(self.delete_view.endpoint.url(URL_PARAM), self.delete_view.view(), name='delete'),
+            path(self.get_view.endpoint.url(URL_PARAM), self.get_view.view(), name='get'),
+            path(self.list_view.endpoint.url(), self.list_view.view(), name='list'),
+            path(self.update_view.endpoint.url(URL_PARAM), self.update_view.view(), name='update'),
         ]
         for method_view in self.method_views:
             # Pass the method view this ModelType's serializer class.
-            method_view.model_serializer_cls = self.serializer_cls
+            method_view.model_serializer_cls = self.serializer.base_serializer_cls
             urlpatterns.append(
-                path(method_view.url_path, method_view.view(), name=method_view.name),
+                path(method_view.endpoint.url(URL_PARAM), method_view.view(), name=method_view.name),
             )
         for static_method_view in self.static_method_views:
             static_method_view.model_type_cls = self.__class__
             urlpatterns.append(
-                path(static_method_view.url_path, static_method_view.view(), name=static_method_view.name),
+                path(static_method_view.endpoint.url(), static_method_view.view(), name=static_method_view.name),
             )
         return urlpatterns
 
@@ -267,16 +186,6 @@ class ModelType(object):
         """
         matches = re.finditer('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)', self.model_name)
         return "-".join([m.group(0).lower() for m in matches])
-
-    @property
-    def fields(self) -> typing.List[ModelTypeField]:
-        return self.concrete_fields + self.forward_relation_fields + self.reverse_relation_fields
-
-    def field_lookup_info(self, model_pool: types.ModelPool) -> typing.List[types.FieldLookupInfo]:
-        lookup_info = []
-        for field in self.fields:
-            lookup_info += field.lookup_info(model_pool=model_pool)
-        return lookup_info
 
 
 

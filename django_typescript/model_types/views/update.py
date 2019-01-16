@@ -1,3 +1,4 @@
+from django_typescript.core import endpoints
 from django_typescript.model_types.view import ModelView, Response, status
 
 
@@ -9,9 +10,10 @@ class UpdateView(ModelView):
 
     REQUEST_METHOD = 'POST'
 
-    def __init__(self, serializer_cls, permission_classes=None):
-        ModelView.__init__(self, serializer_cls=serializer_cls, permission_classes=permission_classes,
-                           url_path=f'{self.PK_PARAMETER}/update/')
+    def __init__(self, serializer, serializer_cls, permission_classes=None):
+        ModelView.__init__(self, serializer=serializer, serializer_cls=serializer_cls,
+                           permission_classes=permission_classes,
+                           endpoint=endpoints.Endpoint(endpoints.Param, 'update'))
 
     @property
     def model_cls(self):

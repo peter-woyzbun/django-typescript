@@ -31,7 +31,7 @@ class ObjectType(object):
         cls._SERIALIZER_CLS = serializer_cls
 
     @classmethod
-    def method_views(cls):
+    def method_views(cls) -> typing.List[ObjectMethodView]:
         method_views = []
         for k, v in cls.__dict__.items():
             if isinstance(v, ObjectMethodView):
@@ -39,7 +39,7 @@ class ObjectType(object):
         return method_views
 
     @classmethod
-    def static_method_views(cls):
+    def static_method_views(cls) -> typing.List[ObjectStaticMethodView]:
         static_method_views = []
         for k, v in cls.__dict__.items():
             if isinstance(v, ObjectStaticMethodView):
@@ -68,12 +68,12 @@ class ObjectType(object):
             method_view.object_serializer_cls = cls._SERIALIZER_CLS
             method_view.object_type_class = cls
             urlpatterns.append(
-                path(method_view.url_path, method_view.view(), name=method_view.name),
+                path(method_view.endpoint.url(), method_view.view(), name=method_view.name),
             )
         for static_method_view in cls.static_method_views():
             static_method_view.object_type_class = cls
             urlpatterns.append(
-                path(static_method_view.url_path, static_method_view.view(), name=static_method_view.name),
+                path(static_method_view.endpoint.url(), static_method_view.view(), name=static_method_view.name),
             )
         return urlpatterns
 

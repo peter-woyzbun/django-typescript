@@ -8,7 +8,7 @@ from django_typescript.test import IntegrationTestCase
 from django_typescript import interface
 from django_typescript.transpile import Transpiler
 
-from .models import ThingSerializer, Thing, ThingChildSerializer, ThingChild
+from .models import ThingSerializer, Thing, ThingChildSerializer, ThingChild, ThingChildChild
 
 
 # =================================
@@ -68,6 +68,7 @@ class Interface(interface.Interface):
 
     things = ThingType.as_type()
     child_things = interface.ModelType(model_cls=ThingChild)
+    child_child_things = interface.ModelType(model_cls=ThingChildChild)
     object_types = GenericObjectType
 
 
@@ -135,6 +136,18 @@ class TestIntegration(IntegrationTestCase):
     @override_settings(ROOT_URLCONF=__name__)
     def test_get_forward_relation(self):
         self._run_ts_test(test_name='get_forward_relation')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_get_forward_relation_prefetch(self):
+        self._run_ts_test(test_name='get_forward_relation_prefetch')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_get_nested_forward_relation_prefetch(self):
+        self._run_ts_test(test_name='get_nested_forward_relation_prefetch')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_get_forward_relation_prefetch_list(self):
+        self._run_ts_test(test_name='get_forward_relation_prefetch_list')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_filter_reverse_related(self):

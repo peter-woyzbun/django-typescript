@@ -5,6 +5,7 @@ from django.db import models
 from django.core.paginator import Paginator
 from rest_framework.request import Request
 
+from django_typescript.core import types
 from django_typescript.model_types.queryset_renderer import QuerysetRenderer
 
 
@@ -18,6 +19,8 @@ class ListQuery(object):
         self.request = request
         self.model_cls = model_cls
         self.query_json = request.query_params.get('query')
+        self.prefetch_json = request.query_params.get('prefetch')
+        self.prefetch_trees: types.PrefetchTree = []
         self.query: dict = None
         self.order_on: typing.List[str] = request.query_params.get('order_on', [])
         self.fields: typing.List[str] = request.query_params.get('fields', None)
@@ -25,7 +28,6 @@ class ListQuery(object):
         self.page_size = request.query_params.get('pagesize', 25)
         self.num_results: int = None
         self.num_pages: int = None
-
         self._load_json()
 
     @property
@@ -36,6 +38,8 @@ class ListQuery(object):
         if self.query_json:
             query_json = self.query_json.replace(u'\ufeff', '')
             self.query = json.loads(query_json)
+        if self.prefetch_json:
+            self.prefetch_trees = json.loads(self.prefetch_json)
         if self.order_on:
             self.order_on = json.loads(self.order_on)
 

@@ -5,9 +5,9 @@ from django.urls import path, include
 from django.db import models
 from rest_framework.exceptions import ValidationError
 
-from django_typescript.core.utils.utils import camel_case_to_underscore
-from django_typescript.model_types.model_type import ModelType
 from django_typescript.object_types.object_type import ObjectType
+from django_typescript.core.utils import camel_case_to_underscore
+from django_typescript.model_types.model_type import ModelType
 
 
 # =================================
