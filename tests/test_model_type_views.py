@@ -24,7 +24,7 @@ class ThingType(interface.ModelType, model_cls=Thing):
     def thing_static_method(cls, a, b):
         return {'a': a, 'b': b}
 
-    def validate(self, name: str):
+    def validate(self, name):
         if name == 'invalid_name':
             raise interface.ValidationError({'name': 'Name invalid.'})
 
@@ -72,6 +72,8 @@ class TestModelTypeViews(TestCase):
     def test_update_view(self):
         thing = Thing.objects.create()
         view_url = reverse('thing:update', kwargs={'pk': thing.id})
+        print("VIEW URL!!!")
+        print(view_url)
         data = {'name': 'new name'}
         response = self.client.post(view_url, data=data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)

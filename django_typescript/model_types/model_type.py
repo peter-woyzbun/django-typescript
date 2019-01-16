@@ -9,6 +9,7 @@ from django_typescript.core.model_inspector import ModelInspector
 from django_typescript.model_types.field import ModelTypeField
 from django_typescript.core import types
 from django_typescript.model_types.lookup_tree import LookupTree
+from django_typescript.model_types.validator import ModelTypeValidator
 from django_typescript.model_types.views import (CreateView,
                                                  DeleteView,
                                                  GetView,
@@ -25,7 +26,9 @@ from django_typescript.model_types.views import (CreateView,
 class ModelType(object):
 
     """
-    A `ModelType` ...
+    A `ModelType` represents a single Django `Model` for which a
+    TypeScript representation will be 'transpiled', and views/urls
+    generated appropriately.
 
     """
 
@@ -121,7 +124,11 @@ class ModelType(object):
         """
         field_names = [f.name for f in self.model_inspector.concrete_fields] + \
                       [f.name for f in self.forward_relation_fields]
-        forward_relation_fields = {f.model_field.name: f for f in self.forward_relation_fields}
+
+        valid_field_names = [f.name for f in self.model_inspector.concrete_fields] + \
+                      [f.name for f in self.forward_relation_fields] + \
+                        [f.model_field.name for f in self.forward_relation_fields]
+        forward_relation_fields = {f.serializer_field_name: f for f in self.forward_relation_fields}
 
         class BaseSerializer(serializers.ModelSerializer):
             """
@@ -132,14 +139,14 @@ class ModelType(object):
 
             def validate(_self, attrs):
                 validate_model_type = getattr(self, "validate", None)
-                # for forward_relation_name, field in forward_relation_fields.items():
-                #     if forward_relation_name in attrs:
-                #         forward_relation_id = attrs[forward_relation_name]
-                #         if forward_relation_id:
-                #             attrs[]
-
                 if validate_model_type:
-                    validate_model_type(**dict(attrs))
+
+                    validator = ModelTypeValidator(validate_func=validate_model_type,
+                                                   forward_relation_fields=forward_relation_fields)
+                    assert len(set(validator.validator_field_names) - set(valid_field_names)) == 0, (
+                        'One or more arguments of provided `validate` method does not correspond to a field name.'
+                    )
+                    validator.validate(**dict(attrs))
                 return serializers.ModelSerializer.validate(_self, attrs)
 
             class Meta:
@@ -154,7 +161,17 @@ class ModelType(object):
             f.name: f.serializer_field for f in self.forward_relation_fields
         }
         serializer_cls = type("ArgSerializer", (BaseSerializer,), forward_relation_field_serializers)
+        serializer_cls = self._finalize_serializer_cls(serializer_cls=serializer_cls)
         self.serializer_cls = serializer_cls
+
+    def _finalize_serializer_cls(self, serializer_cls: types.SerializerClass) -> types.SerializerClass:
+        """
+        This method can be overriden in order to modify the serializer class
+        for this `ModelType`. Note that this requires using a class-based
+        `ModelType` definition.
+
+        """
+        return serializer_cls
 
     def _create_concrete_fields(self):
         serializer_fields = self.serializer_cls().get_fields()

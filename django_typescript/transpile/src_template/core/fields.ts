@@ -1,3 +1,5 @@
+import {ModelClass} from "./types";
+
 
 // -------------------------
 // Primary Key
@@ -32,31 +34,11 @@ export enum FieldType{
     NullBooleanField = "NullBooleanField"
 }
 
-// -------------------------
-// Field Schema
-//
-// -------------------------
-
-
-export interface FieldSchema<FieldTypes>{
-    readonly fieldName: string;
-    readonly fieldType: FieldTypes;
-    readonly nullable: boolean;
-    readonly isReadOnly: boolean;
-    readonly description?: string;
-    readonly defaultValue?: any;
-    readonly relatedModel?: any;
-    readonly choices?: any[]
-}
 
 // -------------------------
 // Model Fields Schema
 //
 // -------------------------
-
-export interface ModelFieldsSchema<FieldTypes>{
-    [key: string]: FieldSchema<FieldTypes>
-}
 
 
 // -------------------------
@@ -75,23 +57,6 @@ export const foreignKeyField = (RelatedModel: () => any) =>
 
     let value = target[propertyKey];
     let cachedValue = null;
-    let idValue = target[idPropertyKey];
-
-    const getter = async () => {
-        return this[idPropertyKey]
-        // const _RelatedModel = RelatedModel();
-        // if (value){ return value }
-        // if (idValue){
-        //     value = await _RelatedModel.objects.get(idValue);
-        //     return value
-        // }
-        // return undefined
-    };
-
-    const setter = (val) => {
-        cachedValue = val;
-    };
-
 
     Object.defineProperty(target, propertyKey, {
 
@@ -99,10 +64,13 @@ export const foreignKeyField = (RelatedModel: () => any) =>
             if (cachedValue){
                 return cachedValue
             }
-            const _RelatedModel = RelatedModel();
-            value = await _RelatedModel.objects.get(this[idPropertyKey]);
+            const idValue = this[idPropertyKey];
+            if (idValue){
+                const _RelatedModel = RelatedModel();
+            [value] = await _RelatedModel.objects.get(this[idPropertyKey]);
             this[propertyKey] = value;
             return value
+            }
          },
         set: function (val) {
             cachedValue = val;

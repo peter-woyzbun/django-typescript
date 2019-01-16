@@ -1,0 +1,18 @@
+site_name: Django TypeScript
+site_url: https://www.github.com
+site_description: Django TypeScript
+
+repo_url: https://github.com/encode/django-rest-framework
+
+theme_dir: docs_theme
+
+markdown_extensions:
+ - toc:
+    anchorlink: True
+
+pages:
+ - Home: 'index.md'
+ - Python:
+    - 'Interface': 'python/interface.md'
+    - 'Model Types': 'python/model-types.md'
+    - 'Object Types': 'python/object-types.md'

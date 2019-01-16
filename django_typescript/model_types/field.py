@@ -38,13 +38,20 @@ class ModelTypeField(object):
 
         """
         serializer_field = None
+        serializer_field_name = None
         if types.field_is_forward_relation(model_field):
             pk_field = model_field.related_model._meta.pk
+
             if isinstance(pk_field, models.AutoField):
                 serializer_field_cls = cls.AUTO_FIELD_SERIALIZER
+            # Todo: this requires recursive logic...
+            if isinstance(pk_field, models.OneToOneField):
+                target_pk_field = pk_field.related_model._meta.pk
+                serializer_field_cls = serializers.ModelSerializer.serializer_field_mapping[type(target_pk_field)]
             else:
-                serializer_field_cls = serializers.ModelSerializer.serializer_field_mapping[model_field]
+                serializer_field_cls = serializers.ModelSerializer.serializer_field_mapping[type(pk_field)]
             serializer_field = serializer_field_cls(allow_null=model_field.null, default=model_field.default)
+            serializer_field_name = model_field.db_column
         return cls(model_field=model_field, serializer_field=serializer_field,
                    serializer_field_name=model_field.name + cls.FORWARD_RELATION_SUFFIX)
 
@@ -66,40 +73,30 @@ class ModelTypeField(object):
     def _lookup_key(*parts: str):
         return "__".join(parts)
 
-    def _base_lookup_info(self, prefixes: List[str]) -> types.FieldLookupInfo:
+    def _base_lookup_info(self) -> types.FieldLookupInfo:
         """
         Return the 'base' lookup info for this field.
 
         """
 
-        return self._lookup_key(*(prefixes + [self.base_lookup_key])), self.model_field, None
+        return self._lookup_key(*([self.base_lookup_key])), self.model_field, None
 
-    def lookup_info(self, model_pool: types.ModelPool, visited_models: types.ModelPool = None,
-                    model_field: types.ModelField = None, prefixes: List[str]=None) -> List[types.FieldLookupInfo]:
-        if model_field is None:
-            model_field = self.model_field
-        if visited_models is None:
-            visited_models = []
-        if prefixes is None:
-            prefixes = []
+    def lookup_info(self, model_pool: types.ModelPool) -> List[types.FieldLookupInfo]:
         lookup_info = []
+        # Many-to-many fields are not currently supported.
+        if isinstance(self.model_field, models.ManyToManyField):
+            return []
         # No base lookup is defined for relation fields - we use the nested field lookups,
         # e.g: 'relation_field__id=<number>', rather than 'relation_field=<ModelInstance>'.
-        if not types.field_is_relation(model_field):
-            lookup_info.append(self._base_lookup_info(prefixes))
-            for lookup_str, lookup_cls in model_field.get_lookups().items():
+        if not types.field_is_relation(self.model_field):
+            lookup_info.append(self._base_lookup_info())
+            for lookup_str, lookup_cls in self.model_field.get_lookups().items():
                 lookup_info.append(
-                    (self._lookup_key(*(prefixes + [self.base_lookup_key] + [lookup_str])), model_field, lookup_cls)
+                    (self._lookup_key(*([self.base_lookup_key] + [lookup_str])), self.model_field, lookup_cls)
                 )
-        if types.field_is_relation(model_field):
-            if model_field.related_model in model_pool and not model_field.related_model in visited_models:
-                for nested_model_field in model_field.related_model._meta.get_fields():
-                    nested_field = ModelTypeField(model_field=nested_model_field)
-                    lookup_info += nested_field.lookup_info(
-                        model_pool=model_pool,
-                        visited_models=visited_models + [model_field.model],
-                        prefixes=[model_field.name] + prefixes
-                    )
+        else:
+            if self.model_field.related_model in model_pool:
+                lookup_info.append((self.model_field.name, self.model_field.related_model, None))
         return lookup_info
 
 

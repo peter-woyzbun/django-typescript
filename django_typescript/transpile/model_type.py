@@ -1,3 +1,5 @@
+from django.db import models
+
 from django_typescript.core import types
 from django_typescript.model_types import ModelType, ModelView
 from django_typescript.transpile.type_transpiler import TypeTranspiler
@@ -5,6 +7,7 @@ from django_typescript.transpile.common import render_type_declaration
 from django_typescript.core.utils.typescript_template import TypeScriptTemplate
 from django_typescript.transpile import templates
 from django_typescript.transpile.method import MethodTranspiler
+from django_typescript.transpile.type_transpiler import TypeTranspiler
 from django_typescript.transpile.literal import LiteralTranspiler
 
 
@@ -45,13 +48,21 @@ class ModelTypeTranspiler(object):
 
     def queryset_lookup_types(self):
         type_declarations = []
-        for lookup_key, model_field, lookup_cls in self.model_type.field_lookup_info(model_pool=self.model_pool):
-            type_declarations.append(render_type_declaration(
-                name=lookup_key,
-                optional=True,
-                readonly=False,
-                type_=TypeTranspiler.transpile(type_=model_field, container_type=lookup_cls)
-            ))
+        for lookup_key, model_field_or_model, lookup_cls in self.model_type.field_lookup_info(model_pool=self.model_pool):
+            if isinstance(model_field_or_model, models.Field):
+                type_declarations.append(render_type_declaration(
+                    name=lookup_key,
+                    optional=True,
+                    readonly=False,
+                    type_=TypeTranspiler.transpile(type_=model_field_or_model, container_type=lookup_cls)
+                ))
+            else:
+                type_declarations.append(render_type_declaration(
+                    name=lookup_key,
+                    optional=True,
+                    readonly=False,
+                    type_=model_field_or_model.__name__ + self.QUERYSET_LOOKUPS_SUFFIX
+                ))
         return "\n".join(type_declarations)
 
     def model_interface_types(self):
@@ -68,9 +79,10 @@ class ModelTypeTranspiler(object):
     def model_class_types(self):
         type_declarations = []
         for field in self.model_type.forward_relation_fields:
-            type_declarations.append(
-                f"@{self.FOREIGN_KEY_DECORATOR_NAME}(() => {field.related_model_name}) " + field.model_field.name + "?: " + field.related_model_name
-            )
+            if field.model_field.related_model in self.model_pool:
+                type_declarations.append(
+                    f"@{self.FOREIGN_KEY_DECORATOR_NAME}(() => {field.related_model_name}) " + field.model_field.name + "?: " + field.related_model_name
+                )
         return "\n".join([self.model_interface_types()] + type_declarations)
 
     def _methods(self):
@@ -111,14 +123,15 @@ class ModelTypeTranspiler(object):
                 field.name + ": {" + schema + "}"
             )
         for field in self.model_type.forward_relation_fields:
-            schema = f"fieldName:'{field.name}'," \
-                     f"fieldType:'{field.model_field.__class__.__name__}'," \
-                     f"nullable:{LiteralTranspiler.transpile(field.model_field.null)}," \
-                     f"isReadOnly:{LiteralTranspiler.transpile(field.serializer_field.read_only)}," \
-                     f"relatedModel: {field.related_model_name}"
-            field_schemas.append(
-                field.name + ": {" + schema + "}"
-            )
+            if field.model_field.related_model in self.model_pool:
+                schema = f"fieldName:'{field.name}'," \
+                         f"fieldType:'{field.model_field.__class__.__name__}'," \
+                         f"nullable:{LiteralTranspiler.transpile(field.model_field.null)}," \
+                         f"isReadOnly:{LiteralTranspiler.transpile(field.serializer_field.read_only)}," \
+                         f"relatedModel: () => {field.related_model_name}"
+                field_schemas.append(
+                    field.name + ": {" + schema + "}"
+                )
 
         return ", \n".join(field_schemas)
 

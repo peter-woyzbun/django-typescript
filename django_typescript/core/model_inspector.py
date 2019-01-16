@@ -1,7 +1,6 @@
 from typing import Type, List
 
 from django.utils.functional import cached_property
-
 from django.db import models
 
 from django_typescript.core import types

@@ -48,7 +48,7 @@ RelationField = typing.Union[ForwardRelationField, ReverseRelationField]
 
 LookupClass = typing.Type[models.Lookup]
 
-FieldLookupInfo = typing.Tuple[str, ModelField, typing.Union[LookupClass, None]]
+FieldLookupInfo = typing.Tuple[str, typing.Union[ModelField, ModelClass], typing.Union[LookupClass, None]]
 
 
 # =================================
@@ -68,5 +68,6 @@ def field_is_forward_relation(field: ModelField) -> bool:
 
 
 def field_is_relation(field: ModelField) -> bool:
-    return isinstance(field, REVERSE_RELATION_FIELDS + FORWARD_RELATION_FIELDS)
+    return isinstance(field, REVERSE_RELATION_FIELDS + FORWARD_RELATION_FIELDS + (models.ManyToManyRel, ))
+
 

@@ -1,21 +1,6 @@
-import fetch from 'node-fetch';
+import fetch, {FetchError} from 'node-fetch';
 
-
-// -------------------------
-// Response Handlers
-// -------------------------
-
-
-type ResponseCallback = (response) => void
-
-type HeaderMiddleware = (header: object) => object
-
-export interface ResponseHandlers {
-    [responseCode: number]: ResponseCallback,
-    onError?: (err) => any
-}
-
-type RequestType = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+import {HeaderMiddleware, RequestMethod, ServerResponse} from "./types";
 
 
 // -------------------------
@@ -28,7 +13,6 @@ export class ServerClient {
 
     public baseUrl: string;
     public headerMiddleware: HeaderMiddleware;
-    public defaultResponseHandlers: ResponseHandlers = {};
 
     constructor() {
         this.baseUrl = '';
@@ -42,36 +26,24 @@ export class ServerClient {
         }
     }
 
-    private _responseHandlers(responseHandlers: ResponseHandlers={}){
-        return {...this.defaultResponseHandlers, ...responseHandlers}
-    }
-
-    public request(url, requestOptions: object,
-                   responseHandlers: ResponseHandlers = {}): Promise<any | undefined>{
-
-        const _responseHandlers = this._responseHandlers(responseHandlers);
+    public request(url, requestOptions: object): Promise<ServerResponse>{
 
         return ((fetch(url, requestOptions)
-                .then(res => {
-                    if (res.status in _responseHandlers){
-                        _responseHandlers[res.status](res)
-                    } else{
-                        return res.json()
-                    }
+                .then(async res => {
+                    return [await res.json(), res.status, undefined]
                 })
                 .catch(err => {
-                    if (responseHandlers.onError){responseHandlers.onError(err)}
-                    return err
+                    return [undefined, undefined, err]
                 })
         ));
     }
 
-    private _requestOptions(requestType: RequestType, headers?: object, body?: any | undefined): object{
+    private _requestOptions(requestMethod: RequestMethod, headers?: object, body?: any | undefined): object{
         if (!headers){
             headers = {}
         }
         let requestOptions = {
-            method: requestType,
+            method: requestMethod,
         };
         if (body){requestOptions['body'] = body}
         requestOptions['headers'] = this.headerMiddleware(headers);
@@ -82,8 +54,8 @@ export class ServerClient {
      * Send a GET request to given url.
      *
      */
-    public async get(url: string, responseHandlers: ResponseHandlers={}, urlQuery?): Promise<any | undefined> {
-        return this.request(this._buildUrl(url, urlQuery), this._requestOptions('GET'), responseHandlers);
+    public async get(url: string, urlQuery?){
+        return this.request(this._buildUrl(url, urlQuery), this._requestOptions(RequestMethod.GET));
 
     }
 
@@ -91,28 +63,28 @@ export class ServerClient {
      * Send a POST request to given url.
      *
      */
-    public async post(url: string, postData?: object, responseHandlers: ResponseHandlers={}): Promise<any | undefined> {
+    public async post(url: string, postData?: object) {
         let headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         };
-        return this.request(this._buildUrl(url), this._requestOptions('POST', headers, JSON.stringify(postData)), responseHandlers);
+        return this.request(this._buildUrl(url), this._requestOptions(RequestMethod.POST, headers, JSON.stringify(postData)));
     }
 
     /**
      * Send a PATCH request to given url.
      *
      */
-    public async patch(url: string, patchData?: object, responseHandlers: ResponseHandlers={}): Promise<any | undefined> {
-        return this.request(this._buildUrl(url), this._requestOptions('PATCH', {}, JSON.stringify(patchData)), responseHandlers);
+    public async patch(url: string, patchData?: object) {
+        return this.request(this._buildUrl(url), this._requestOptions(RequestMethod.PATCH, {}, JSON.stringify(patchData)));
     }
 
     /**
      * Send a DELETE request to given url.
      *
      */
-    public async delete(url: string, postData?: object, responseHandlers: ResponseHandlers={}): Promise<Response | undefined> {
-        return this.request(this._buildUrl(url), this._requestOptions('DELETE'), responseHandlers);
+    public async delete(url: string, postData?: object) {
+        return this.request(this._buildUrl(url), this._requestOptions(RequestMethod.DELETE));
     }
 
     private _buildUrl(url: string, urlQuery?): string {

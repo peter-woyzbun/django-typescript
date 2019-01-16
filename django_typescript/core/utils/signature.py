@@ -1,4 +1,5 @@
 import inspect
+from collections import OrderedDict
 from typing import Callable, Type, Dict
 
 
@@ -22,7 +23,7 @@ class Signature(object):
 
     def __init__(self, callable_: Callable):
         self.callable = callable_
-        self.parameters: Dict[str, Parameter] = dict()
+        self.parameters: Dict[str, Parameter] = OrderedDict()
 
         self._make_parameters()
 

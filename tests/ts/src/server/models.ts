@@ -1,15 +1,36 @@
 import { serverClient } from './client'
 import {
-    ResponseHandlers,
-    PaginatedInstances,
-    PaginatedObjects,
+    PaginatedData,
     PrimaryKey,
     foreignKeyField,
-    ModelFieldsSchema
+    ModelFieldsSchema,
+    SuccessfulHttpStatusCodes,
+    ServerPayload,
+    ServerDataPayload
 } from './core'
 
+export type FieldType = 'AutoField' | 'IntegerField' | 'CharField' | 'ManyToOneRel' | 'ForeignKey'
 
-export type FieldType = 'AutoField' | 'ManyToOneRel' | 'ForeignKey' | 'IntegerField' | 'CharField'
+
+const flattenLookups = function(ob) {
+    let toReturn = {};
+
+    for (let i in ob) {
+        if (!ob.hasOwnProperty(i)) { continue }
+
+        if ((typeof ob[i]) === 'object') {
+            let flatObject = flattenLookups(ob[i]);
+            for (let x in flatObject) {
+                if (!flatObject.hasOwnProperty(x)) { continue }
+
+                toReturn[i + '__' + x] = flatObject[x];
+            }
+        } else {
+            toReturn[i] = ob[i];
+        }
+    }
+    return toReturn;
+};
 
 
 // -------------------------
@@ -34,7 +55,7 @@ export interface ThingQuerySetLookups {
     id__endswith?: number
     id__iendswith?: number
     id__range?: [number, number]
-    id__isnull?: number
+    id__isnull?: boolean
     id__regex?: number
     id__iregex?: number
     name?: string
@@ -52,7 +73,7 @@ export interface ThingQuerySetLookups {
     name__endswith?: string
     name__iendswith?: string
     name__range?: [string, string]
-    name__isnull?: string
+    name__isnull?: boolean
     name__regex?: string
     name__iregex?: string
     number?: number
@@ -70,64 +91,10 @@ export interface ThingQuerySetLookups {
     number__endswith?: number
     number__iendswith?: number
     number__range?: [number, number]
-    number__isnull?: number
+    number__isnull?: boolean
     number__regex?: number
     number__iregex?: number
-    children__id?: number
-    children__id__exact?: number
-    children__id__iexact?: number
-    children__id__gt?: number
-    children__id__gte?: number
-    children__id__lt?: number
-    children__id__lte?: number
-    children__id__in?: number[]
-    children__id__contains?: number
-    children__id__icontains?: number
-    children__id__startswith?: number
-    children__id__istartswith?: number
-    children__id__endswith?: number
-    children__id__iendswith?: number
-    children__id__range?: [number, number]
-    children__id__isnull?: number
-    children__id__regex?: number
-    children__id__iregex?: number
-    children__name?: string
-    children__name__exact?: string
-    children__name__iexact?: string
-    children__name__gt?: string
-    children__name__gte?: string
-    children__name__lt?: string
-    children__name__lte?: string
-    children__name__in?: string[]
-    children__name__contains?: string
-    children__name__icontains?: string
-    children__name__startswith?: string
-    children__name__istartswith?: string
-    children__name__endswith?: string
-    children__name__iendswith?: string
-    children__name__range?: [string, string]
-    children__name__isnull?: string
-    children__name__regex?: string
-    children__name__iregex?: string
-    children__number?: number
-    children__number__exact?: number
-    children__number__iexact?: number
-    children__number__gt?: number
-    children__number__gte?: number
-    children__number__lt?: number
-    children__number__lte?: number
-    children__number__in?: number[]
-    children__number__contains?: number
-    children__number__icontains?: number
-    children__number__startswith?: number
-    children__number__istartswith?: number
-    children__number__endswith?: number
-    children__number__iendswith?: number
-    children__number__range?: [number, number]
-    children__number__isnull?: number
-    children__number__regex?: number
-    children__number__iregex?: number
-
+    children?: ThingChildQuerySetLookups
 }
 
 export class ThingQuerySet {
@@ -164,51 +131,64 @@ export class ThingQuerySet {
         return this
     }
 
-    public static async get(primaryKey: PrimaryKey, responseHandlers: ResponseHandlers = {}): Promise<Thing | undefined> {
-        let responseData = await serverClient.get(`thing/${primaryKey}/get/`, responseHandlers);
-        if (responseData) { return new Thing(responseData) }
-        return undefined
+    public static async get(primaryKey: number): Promise<ServerPayload<Thing>> {
+        let [responseData, statusCode, err] = await serverClient.get(`thing/${primaryKey}/get/`);
+        if (statusCode === 200) {
+            return [new Thing(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
-    public static async create(data: Partial<ThingFields>, responseHandlers: ResponseHandlers = {}): Promise<Thing | undefined> {
-        let responseData = await serverClient.post(`thing/create/`, data, responseHandlers);
-        if (responseData) { return new Thing(responseData) }
-        return undefined
+    public static async create(data: Partial<ThingFields>): Promise<ServerPayload<Thing>> {
+        let [responseData, statusCode, err] = await serverClient.post(`thing/create/`, data);
+
+        if (statusCode === 201) {
+            return [new Thing(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
     public serialize(): object {
         return {
-            filters: this.lookups,
-            exclude: this.excludedLookups,
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
             or_: this._or.map((queryset) => queryset.serialize())
         }
     }
 
-    public async values(responseHandlers: ResponseHandlers, ...fields: Array<[keyof ThingFields]>): Promise<object[]> {
+    public async values(...fields: Array<[keyof ThingFields]>): Promise<ServerDataPayload<object[]>> {
         const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        return await serverClient.get(`thing/`, responseHandlers, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing/`, urlQuery);
+        return [responseData, statusCode, err]
+
     }
 
-    public async pageValues(responseHandlers: ResponseHandlers = {}, pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingFields]>): Promise<PaginatedObjects> {
+    public async pageValues(pageNum: number = 1, pageSize: number = 25,
+        ...fields: Array<[keyof ThingFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
         const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        return await serverClient.get(`thing/`, responseHandlers, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing/`, urlQuery);
+        return [responseData, statusCode, err]
     }
 
-    public async retrieve(responseHandlers: ResponseHandlers = {}): Promise<Thing[] | undefined> {
+    public async retrieve(): Promise<ServerPayload<Thing[]>> {
         const urlQuery = "query=" + JSON.stringify(this.serialize());
-        let responseData = await serverClient.get(`thing/`, responseHandlers, urlQuery);
-        return responseData.map((data) => new Thing(data))
+        let [responseData, statusCode, err] = await serverClient.get(`thing/`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData.map((data) => new Thing(data)), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
-    public async retrievePage(responseHandlers: ResponseHandlers = {}, pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingFields]>): Promise<PaginatedInstances<Thing>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let responseData = await serverClient.get(`thing/`, responseHandlers, urlQuery);
-        return {
-            ...responseData,
-            data: responseData.data.map((data) => new Thing(data))
-        };
+    public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<Thing>>> {
+        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        let [responseData, statusCode, err] = await serverClient.get(`thing/`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [{
+                ...responseData,
+                data: responseData.data.map((data) => new Thing(data))
+            }, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
 }
@@ -224,7 +204,6 @@ export interface ThingFields {
     readonly id: number
     name?: string
     number?: number
-
 }
 
 
@@ -234,12 +213,10 @@ export class Thing implements ThingFields {
     name?: string
     number?: number
 
-
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
         name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
         number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false }
-
     }
 
     constructor(data: ThingFields) {
@@ -252,13 +229,16 @@ export class Thing implements ThingFields {
         return this.id
     }
 
-    public async update(data: Partial<ThingFields>, responseHandlers: ResponseHandlers = {}) {
-        let responseData = await serverClient.post(`thing/${this.pk()}/update/`, data, responseHandlers);
-        return new Thing(responseData)
+    public async update(data: Partial<ThingFields>): Promise<ServerPayload<Thing>> {
+        let [responseData, statusCode, err] = await serverClient.post(`thing/${this.pk()}/update/`, data);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [new Thing(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err];
     }
 
-    public async delete(responseHandlers: ResponseHandlers = {}) {
-        let responseData = await serverClient.delete(`thing/${this.pk()}/delete/`, responseHandlers);
+    public async delete() {
+        return await serverClient.delete(`thing/${this.pk()}/delete/`);
     }
 
     public children(lookups: ThingChildQuerySetLookups = {}) {
@@ -266,22 +246,18 @@ export class Thing implements ThingFields {
     }
 
 
-
-    public async thing_method(data: { a: string, b: string }, responseHandlers: ResponseHandlers) {
-        return await serverClient.post(`thing/thing-method/${this.pk()}/`, data, responseHandlers);
+    public async thing_method(data: { a: string, b: string }) {
+        return await serverClient.post(`thing/thing-method/${this.pk()}/`, data);
     }
 
 
-
-    public static async thing_static_method(data: { a: string, b: string }, responseHandlers: ResponseHandlers) {
-        return await serverClient.post(`thing/thing-static-method/`, data, responseHandlers);
+    public static async thing_static_method(data: data: { a: string, b: string }) {
+        return await serverClient.post(`thing/thing-static-method/`, data);
     }
-
 
 
 
 }
-
 
 // -------------------------
 // ThingChildQuerySet
@@ -305,7 +281,7 @@ export interface ThingChildQuerySetLookups {
     id__endswith?: number
     id__iendswith?: number
     id__range?: [number, number]
-    id__isnull?: number
+    id__isnull?: boolean
     id__regex?: number
     id__iregex?: number
     name?: string
@@ -323,7 +299,7 @@ export interface ThingChildQuerySetLookups {
     name__endswith?: string
     name__iendswith?: string
     name__range?: [string, string]
-    name__isnull?: string
+    name__isnull?: boolean
     name__regex?: string
     name__iregex?: string
     number?: number
@@ -341,64 +317,10 @@ export interface ThingChildQuerySetLookups {
     number__endswith?: number
     number__iendswith?: number
     number__range?: [number, number]
-    number__isnull?: number
+    number__isnull?: boolean
     number__regex?: number
     number__iregex?: number
-    parent__id?: number
-    parent__id__exact?: number
-    parent__id__iexact?: number
-    parent__id__gt?: number
-    parent__id__gte?: number
-    parent__id__lt?: number
-    parent__id__lte?: number
-    parent__id__in?: number[]
-    parent__id__contains?: number
-    parent__id__icontains?: number
-    parent__id__startswith?: number
-    parent__id__istartswith?: number
-    parent__id__endswith?: number
-    parent__id__iendswith?: number
-    parent__id__range?: [number, number]
-    parent__id__isnull?: number
-    parent__id__regex?: number
-    parent__id__iregex?: number
-    parent__name?: string
-    parent__name__exact?: string
-    parent__name__iexact?: string
-    parent__name__gt?: string
-    parent__name__gte?: string
-    parent__name__lt?: string
-    parent__name__lte?: string
-    parent__name__in?: string[]
-    parent__name__contains?: string
-    parent__name__icontains?: string
-    parent__name__startswith?: string
-    parent__name__istartswith?: string
-    parent__name__endswith?: string
-    parent__name__iendswith?: string
-    parent__name__range?: [string, string]
-    parent__name__isnull?: string
-    parent__name__regex?: string
-    parent__name__iregex?: string
-    parent__number?: number
-    parent__number__exact?: number
-    parent__number__iexact?: number
-    parent__number__gt?: number
-    parent__number__gte?: number
-    parent__number__lt?: number
-    parent__number__lte?: number
-    parent__number__in?: number[]
-    parent__number__contains?: number
-    parent__number__icontains?: number
-    parent__number__startswith?: number
-    parent__number__istartswith?: number
-    parent__number__endswith?: number
-    parent__number__iendswith?: number
-    parent__number__range?: [number, number]
-    parent__number__isnull?: number
-    parent__number__regex?: number
-    parent__number__iregex?: number
-
+    parent?: ThingQuerySetLookups
 }
 
 export class ThingChildQuerySet {
@@ -435,51 +357,64 @@ export class ThingChildQuerySet {
         return this
     }
 
-    public static async get(primaryKey: PrimaryKey, responseHandlers: ResponseHandlers = {}): Promise<ThingChild | undefined> {
-        let responseData = await serverClient.get(`thing-child/${primaryKey}/get/`, responseHandlers);
-        if (responseData) { return new ThingChild(responseData) }
-        return undefined
+    public static async get(primaryKey: number): Promise<ServerPayload<ThingChild>> {
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child/${primaryKey}/get/`);
+        if (statusCode === 200) {
+            return [new ThingChild(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
-    public static async create(data: Partial<ThingChildFields>, responseHandlers: ResponseHandlers = {}): Promise<ThingChild | undefined> {
-        let responseData = await serverClient.post(`thing-child/create/`, data, responseHandlers);
-        if (responseData) { return new ThingChild(responseData) }
-        return undefined
+    public static async create(data: Partial<ThingChildFields>): Promise<ServerPayload<ThingChild>> {
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child/create/`, data);
+
+        if (statusCode === 201) {
+            return [new ThingChild(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
     public serialize(): object {
         return {
-            filters: this.lookups,
-            exclude: this.excludedLookups,
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
             or_: this._or.map((queryset) => queryset.serialize())
         }
     }
 
-    public async values(responseHandlers: ResponseHandlers, ...fields: Array<[keyof ThingChildFields]>): Promise<object[]> {
+    public async values(...fields: Array<[keyof ThingChildFields]>): Promise<ServerDataPayload<object[]>> {
         const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        return await serverClient.get(`thing-child/`, responseHandlers, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child/`, urlQuery);
+        return [responseData, statusCode, err]
+
     }
 
-    public async pageValues(responseHandlers: ResponseHandlers = {}, pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingChildFields]>): Promise<PaginatedObjects> {
+    public async pageValues(pageNum: number = 1, pageSize: number = 25,
+        ...fields: Array<[keyof ThingChildFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
         const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        return await serverClient.get(`thing-child/`, responseHandlers, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child/`, urlQuery);
+        return [responseData, statusCode, err]
     }
 
-    public async retrieve(responseHandlers: ResponseHandlers = {}): Promise<ThingChild[] | undefined> {
+    public async retrieve(): Promise<ServerPayload<ThingChild[]>> {
         const urlQuery = "query=" + JSON.stringify(this.serialize());
-        let responseData = await serverClient.get(`thing-child/`, responseHandlers, urlQuery);
-        return responseData.map((data) => new ThingChild(data))
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child/`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData.map((data) => new ThingChild(data)), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
-    public async retrievePage(responseHandlers: ResponseHandlers = {}, pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingChildFields]>): Promise<PaginatedInstances<ThingChild>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let responseData = await serverClient.get(`thing-child/`, responseHandlers, urlQuery);
-        return {
-            ...responseData,
-            data: responseData.data.map((data) => new ThingChild(data))
-        };
+    public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<ThingChild>>> {
+        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child/`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [{
+                ...responseData,
+                data: responseData.data.map((data) => new ThingChild(data))
+            }, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
 }
@@ -496,7 +431,6 @@ export interface ThingChildFields {
     readonly id: number
     name?: string
     number?: number
-
 }
 
 
@@ -508,13 +442,11 @@ export class ThingChild implements ThingChildFields {
     number?: number
     @foreignKeyField(() => Thing) parent?: Thing
 
-
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
         name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
         number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false },
-        parent_id: { fieldName: 'parent_id', fieldType: 'ForeignKey', nullable: false, isReadOnly: false, relatedModel: Thing }
-
+        parent_id: { fieldName: 'parent_id', fieldType: 'ForeignKey', nullable: false, isReadOnly: false, relatedModel: () => Thing }
     }
 
     constructor(data: ThingChildFields) {
@@ -527,13 +459,16 @@ export class ThingChild implements ThingChildFields {
         return this.id
     }
 
-    public async update(data: Partial<ThingChildFields>, responseHandlers: ResponseHandlers = {}) {
-        let responseData = await serverClient.post(`thing-child/${this.pk()}/update/`, data, responseHandlers);
-        return new ThingChild(responseData)
+    public async update(data: Partial<ThingChildFields>): Promise<ServerPayload<ThingChild>> {
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child/${this.pk()}/update/`, data);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [new ThingChild(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err];
     }
 
-    public async delete(responseHandlers: ResponseHandlers = {}) {
-        let responseData = await serverClient.delete(`thing-child/${this.pk()}/delete/`, responseHandlers);
+    public async delete() {
+        return await serverClient.delete(`thing-child/${this.pk()}/delete/`);
     }
 
 

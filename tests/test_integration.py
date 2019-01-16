@@ -24,6 +24,10 @@ TS_TRANSPILE_DEST = str(pathlib.Path(__file__).parent / 'ts' / 'src')
 
 class ThingType(interface.ModelType, model_cls=Thing):
 
+    def validate(self, name):
+        if name == 'invalid_name':
+            raise interface.ValidationError({'name': 'Invalid name'})
+
     @interface.ModelType.method(a=serializers.CharField(), b=serializers.CharField())
     def thing_method(self: Thing, a, b):
         return {'a': a, 'b': b, 'id': self.pk}
@@ -54,7 +58,6 @@ class GenericObjectType(interface.ObjectType, serializer_cls=ObjectTypeSerialize
             raise Exception
         return {'dt': a_datetime}
 
-    @classmethod
     @interface.ObjectType.static_method(a=serializers.CharField(), b=serializers.CharField())
     def object_static_method(cls, a, b):
         return {'a': a, 'b': b}
@@ -92,6 +95,10 @@ class TestIntegration(IntegrationTestCase):
     @override_settings(ROOT_URLCONF=__name__)
     def test_create_and_get(self):
         self._run_ts_test(test_name='create_and_get')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_create_invalid(self):
+        self._run_ts_test(test_name='create_invalid')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_create_and_delete(self):
@@ -144,6 +151,10 @@ class TestIntegration(IntegrationTestCase):
     @override_settings(ROOT_URLCONF=__name__)
     def test_object_method(self):
         self._run_ts_test(test_name='object_method')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_object_static_method(self):
+        self._run_ts_test(test_name='object_static_method')
 
 
 

@@ -4,6 +4,7 @@ import re
 from rest_framework import serializers
 from django.urls import path
 
+from django_typescript.core.utils.signature import Signature
 from django_typescript.object_types.views import ObjectMethodView, ObjectStaticMethodView
 
 
@@ -20,6 +21,13 @@ class ObjectType(object):
 
     def __init_subclass__(cls, **kwargs):
         serializer_cls = kwargs.get('serializer_cls')
+        if serializer_cls is None:
+            raise AssertionError("`ObjectType` subclasses must be provided with a class-level `serializer_cls` keyword "
+                                 "argument.")
+        field_names = list(serializer_cls().get_fields().keys())
+        init_sig = Signature(callable_=cls.__init__)
+        if set(field_names) != set(init_sig.param_names):
+            raise AssertionError("An `ObjectType`'s `serializer_cls` fields must match the `__init__` signature.")
         cls._SERIALIZER_CLS = serializer_cls
 
     @classmethod

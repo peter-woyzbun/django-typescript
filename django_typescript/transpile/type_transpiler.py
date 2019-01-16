@@ -24,6 +24,7 @@ class TypeTranspiler(object):
     TYPE_TRANSPILERS = {
         # Serializer field types
         serializers.IntegerField: lambda x: typescript_types.NUMBER,
+        serializers.NullBooleanField: lambda x: typescript_types.BOOLEAN,
         serializers.CharField: lambda x: typescript_types.STRING,
         serializers.FloatField: lambda x: typescript_types.NUMBER,
         serializers.JSONField: lambda x: typescript_types.OBJECT,
@@ -59,6 +60,7 @@ class TypeTranspiler(object):
         models.Model: lambda x: x.__name__,
         # Container types
         lookups.In: lambda x: f'{x}[]',
+        lookups.IsNull: lambda x: typescript_types.BOOLEAN,
         related_lookups.RelatedIn: lambda x: f'{x}[]',
         lookups.Range: lambda x: f'[{x}, {x}]',
     }

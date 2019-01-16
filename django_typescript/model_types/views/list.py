@@ -38,6 +38,7 @@ class ListView(ModelView):
                 return Response({
                     'num_results': list_query.num_results,
                     'num_pages': list_query.num_pages,
+                    'page': list_query.page_num,
                     'data': list_data
                 })
             return Response(list_data, status=status.HTTP_200_OK)

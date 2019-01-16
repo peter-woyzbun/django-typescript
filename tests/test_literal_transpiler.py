@@ -18,7 +18,7 @@ def _transpile(py_val: None):
 
 @multimethod
 def _transpile(py_val: str):
-    return f"'{[py_val]}'"
+    return py_val
 
 
 @multimethod
@@ -40,19 +40,3 @@ def _transpile(py_val: list):
 def _transpile(py_val: dict):
     return "{" + ", ".join([str(k) + ": " + _transpile(v) for k, v in py_val.items()]) + "}"
 
-
-# =================================
-# Literal Transpiler
-# ---------------------------------
-
-class LiteralTranspiler(object):
-
-    LITERAL_TRANSPILERS = {
-        False: 'false',
-        True: 'true',
-        None: 'null'
-    }
-
-    @classmethod
-    def transpile(cls, value):
-        return cls.LITERAL_TRANSPILERS[value]

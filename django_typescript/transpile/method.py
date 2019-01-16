@@ -19,13 +19,15 @@ class MethodTranspiler(object):
     @property
     def sig_interface(self):
         type_declarations = []
-        serializer_fields = self.arg_serializer_cls().get_fields()
-        for field_name, field in serializer_fields.items():
-            type_declarations.append(
-                render_type_declaration(
-                    name=field_name,
-                    optional=field.allow_null,
-                    readonly=field.read_only,
-                    type_=TypeTranspiler.transpile(field))
-            )
-        return "{" + ", ".join(type_declarations) + "}"
+        if self.arg_serializer_cls:
+            serializer_fields = self.arg_serializer_cls().get_fields()
+            for field_name, field in serializer_fields.items():
+                type_declarations.append(
+                    render_type_declaration(
+                        name=field_name,
+                        optional=field.allow_null,
+                        readonly=field.read_only,
+                        type_=TypeTranspiler.transpile(field))
+                )
+            return "data: {" + ", ".join(type_declarations) + "}"
+        return ''

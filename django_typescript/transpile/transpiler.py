@@ -8,7 +8,6 @@ from django_typescript.core.utils.typescript_template import TypeScriptTemplate
 from django_typescript.transpile import templates
 from django_typescript.transpile.object_type import ObjectTypeTranspiler
 from django_typescript.transpile.model_type import ModelTypeTranspiler
-from django_typescript.model_types.model_type import ModelType
 from django_typescript.interface import Interface
 
 

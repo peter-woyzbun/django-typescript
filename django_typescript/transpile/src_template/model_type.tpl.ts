@@ -1,5 +1,4 @@
 
-
 /*<
 // -------------------------
 // {{ queryset_name }}
@@ -9,9 +8,7 @@
 
 
 export interface __$lookups_interface_name__ {
-    /*<
-    {{ queryset_lookups }}
-    >*/
+    /*<{{ queryset_lookups }}>*/
 }
 
 export class __$queryset_name__ {
@@ -48,51 +45,64 @@ export class __$queryset_name__ {
         return this
     }
 
-    public static async get(primaryKey: PrimaryKey, responseHandlers: ResponseHandlers={} ): Promise<__$model_name__ | undefined>{
-        let responseData = await serverClient.get(`'{{ get_url }}'`, responseHandlers);
-        if (responseData){return new __$model_name__(responseData)}
-        return undefined
+    public static async get(primaryKey: __$pk_type__): Promise<ServerPayload<__$model_name__>>{
+        let [responseData, statusCode, err] = await serverClient.get(`'{{ get_url }}'`);
+        if (statusCode === 200){
+            return [new __$model_name__(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
-    public static async create(data: Partial<__$field_interface_name__>, responseHandlers: ResponseHandlers={}): Promise< __$model_name__ | undefined>{
-        let responseData = await serverClient.post(`'{{ create_url }}'`, data, responseHandlers);
-        if (responseData){return new __$model_name__(responseData)}
-        return undefined
+    public static async create(data: Partial<__$field_interface_name__>): Promise<ServerPayload<__$model_name__>>{
+        let [responseData, statusCode, err] = await serverClient.post(`'{{ create_url }}'`, data);
+
+        if (statusCode === 201){
+            return [new __$model_name__(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
     public serialize(): object{
         return {
-            filters: this.lookups,
-            exclude: this.excludedLookups,
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
             or_: this._or.map((queryset) => queryset.serialize())
         }
     }
 
-    public async values(responseHandlers: ResponseHandlers, ...fields: Array<[keyof __$field_interface_name__]>): Promise<object[]>{
+    public async values(...fields: Array<[keyof __$field_interface_name__]>): Promise<ServerDataPayload<object[]>>{
         const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        return await serverClient.get(`'{{ list_url}}'`, responseHandlers, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`'{{ list_url}}'`, urlQuery);
+        return [responseData, statusCode, err]
+
     }
 
-    public async pageValues(responseHandlers: ResponseHandlers={}, pageNum: number = 1, pageSize: number = 25,
-                            ...fields: Array<[keyof __$field_interface_name__]>): Promise<PaginatedObjects>{
+    public async pageValues(pageNum: number = 1, pageSize: number = 25,
+                            ...fields: Array<[keyof __$field_interface_name__]>): Promise<ServerDataPayload<PaginatedData<object>>>{
         const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        return await serverClient.get(`'{{ list_url}}'`, responseHandlers, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`'{{ list_url}}'`, urlQuery);
+        return [responseData, statusCode, err]
     }
 
-    public async retrieve(responseHandlers: ResponseHandlers={}): Promise<__$model_name__[] | undefined>{
+    public async retrieve(): Promise<ServerPayload<__$model_name__[]>>{
         const urlQuery = "query=" + JSON.stringify(this.serialize());
-        let responseData = await serverClient.get(`'{{ list_url}}'`, responseHandlers, urlQuery);
-        return responseData.map((data) => new __$model_name__(data) )
+        let [responseData, statusCode, err]= await serverClient.get(`'{{ list_url}}'`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes){
+            return [responseData.map((data) => new __$model_name__(data) ), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
-    public async retrievePage(responseHandlers: ResponseHandlers={}, pageNum: number = 1, pageSize: number = 25,
-                              ...fields: Array<[keyof __$field_interface_name__]>): Promise<PaginatedInstances<__$model_name__>>{
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let responseData = await serverClient.get(`'{{ list_url}}'`, responseHandlers, urlQuery);
-        return {
+    public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<__$model_name__>>>{
+        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        let [responseData, statusCode, err] = await serverClient.get(`'{{ list_url}}'`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes){
+            return [{
             ...responseData,
             data: responseData.data.map((data) => new __$model_name__(data) )
-        };
+        }, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
     }
 
 }
@@ -107,22 +117,16 @@ export class __$queryset_name__ {
 
 
 export interface __$field_interface_name__ {
-    /*<
-    {{ model_interface_types }}
-    >*/
+    /*<{{ model_interface_types }}>*/
 }
 
 
 export class __$model_name__ implements __$field_interface_name__{
 
-    /*<
-    {{ model_class_types }}
-    >*/
+    /*<{{ model_class_types }}>*/
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
-         /*<
-        {{ field_schemas }}
-        >*/
+         /*<{{ field_schemas }}>*/
     }
 
     constructor(data: __$field_interface_name__){
@@ -135,38 +139,35 @@ export class __$model_name__ implements __$field_interface_name__{
         /*< return  this.{{ pk_field_name }}  >*/
     }
 
-    public async update(data: Partial<__$field_interface_name__>, responseHandlers: ResponseHandlers = {}){
-        let responseData = await serverClient.post(`'{{ update_url}}'`, data, responseHandlers);
-        return new __$model_name__(responseData)
+    public async update(data: Partial<__$field_interface_name__>): Promise<ServerPayload<__$model_name__>>{
+        let [responseData, statusCode, err] = await serverClient.post(`'{{ update_url}}'`, data);
+         if (statusCode in SuccessfulHttpStatusCodes){
+            return [new __$model_name__(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err];
     }
 
-    public async delete(responseHandlers: ResponseHandlers = {}){
-        let responseData = await serverClient.delete(`'{{ delete_url }}'`, responseHandlers);
+    public async delete(){
+        return await serverClient.delete(`'{{ delete_url }}'`);
     }
 
-     /*<
-     {% for reverse_relation in reverse_relations %}
+     /*<{% for reverse_relation in reverse_relations %}
       public {{ reverse_relation.model_field.name }}(lookups: {{ reverse_relation.related_model_name }}QuerySetLookups = {}){
            return new {{ reverse_relation.related_model_name }}QuerySet({...lookups, ...{ {{ reverse_relation.reverse_lookup_key }}: this.pk()}})
       }
-      {% endfor %}
-    >*/
+      {% endfor %}>*/
 
-     /*<
-     {% for method in methods %}
-      public async {{ method.name }}(data: {{ method.sig_interface }}, responseHandlers: ResponseHandlers){
-           return await serverClient.post(`{{ method.url}}`, data, responseHandlers);
+     /*<{% for method in methods %}
+      public async {{ method.name }}({{ method.sig_interface }}){
+           return await serverClient.post(`{{ method.url}}`, {{ 'data' if method.sig_interface else '{}' }});
       }
-      {% endfor %}
-    >*/
+      {% endfor %}>*/
 
-     /*<
-     {% for static_method in static_methods %}
-      public static async {{ static_method.name }}(data: {{ static_method.sig_interface }}, responseHandlers: ResponseHandlers){
-           return await serverClient.post(`{{ static_method.url}}`, data, responseHandlers);
+     /*<{% for static_method in static_methods %}
+      public static async {{ static_method.name }}(data: {{ static_method.sig_interface }}){
+           return await serverClient.post(`{{ static_method.url}}`, data);
       }
-      {% endfor %}
-    >*/
+      {% endfor %}>*/
 
 
 }
