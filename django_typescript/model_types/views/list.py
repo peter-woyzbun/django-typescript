@@ -24,14 +24,17 @@ class ListView(ModelView):
     def _view_function(self):
         def list_view(request: Request):
             fields_json = request.query_params.get('fields')
-            list_query = ListQuery(model_cls=self.model_cls, request=request)
-            queryset = list_query.queryset()
+            queryset = self.model_cls.objects.all()
             prefetch_trees = None
             prefetch_json = request.query_params.get('prefetch')
             if prefetch_json:
                 prefetch_trees = json.loads(prefetch_json)
             if prefetch_trees:
-                queryset = queryset.select_related(*[prefetch_select_related(prefetch_tree) for prefetch_tree in prefetch_trees])
+                queryset = queryset.select_related(
+                    *[prefetch_select_related(prefetch_tree) for prefetch_tree in prefetch_trees])
+            list_query = ListQuery(model_cls=self.model_cls, base_queryset=queryset, request=request)
+            queryset = list_query.queryset()
+
             serializer = self._get_serializer(queryset, prefetch_trees=prefetch_trees, many=True,
                                               context={'request': request})
             if fields_json:

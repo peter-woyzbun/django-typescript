@@ -15,8 +15,9 @@ from django_typescript.model_types.queryset_renderer import QuerysetRenderer
 
 class ListQuery(object):
 
-    def __init__(self, request: Request, model_cls: typing.Type[models.Model]):
+    def __init__(self, request: Request, base_queryset: models.QuerySet, model_cls: typing.Type[models.Model]):
         self.request = request
+        self.base_queryset = base_queryset
         self.model_cls = model_cls
         self.query_json = request.query_params.get('query')
         self.prefetch_json = request.query_params.get('prefetch')
@@ -44,7 +45,7 @@ class ListQuery(object):
             self.order_on = json.loads(self.order_on)
 
     def queryset(self) -> models.QuerySet:
-        queryset = self.model_cls.objects.all()
+        queryset = self.base_queryset
         if self.query:
             queryset_renderer = QuerysetRenderer(**self.query)
             queryset = queryset_renderer.apply_to_queryset(queryset=queryset)

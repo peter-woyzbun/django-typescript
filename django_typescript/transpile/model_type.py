@@ -85,14 +85,16 @@ class ModelTypeTranspiler(object):
         for field_info in self.model_type.serializer.field_info:
             lookups += field_info.lookup_info(model_pool=self.model_pool)
         for rev_rel_field in self.model_type.model_inspector.reverse_relation_fields:
+
             lookups.append((rev_rel_field.name, rev_rel_field.related_model, None))
         return lookups
 
     def queryset_lookup_types(self):
         type_declarations = []
         for lookup_key, model_field_or_model, lookup_cls in self._field_lookup_info():
+            if isinstance(model_field_or_model, models.ManyToManyField):
+                continue
             if isinstance(model_field_or_model, models.Field):
-
                 type_declarations.append(render_type_declaration(
                     name=lookup_key,
                     optional=True,
@@ -146,7 +148,7 @@ class ModelTypeTranspiler(object):
                     prefetch_parts.append(f"'{base_key}' | {{{base_key}: {related_prefetch_type}}}")
         if not prefetch_parts:
             return 'never'
-        return " | ".join(prefetch_parts)
+        return " |\n ".join(prefetch_parts)
 
     def _methods(self) -> List[ModelMethod]:
         methods = []
@@ -175,6 +177,7 @@ class ModelTypeTranspiler(object):
     def _reverse_relations(self) -> List[ReverseRelation]:
         reverse_relations = []
         for model_field in self.model_type.model_inspector.reverse_relation_fields:
+
             if model_field.related_model in self.model_pool:
                 related_field = model_field.get_related_field()
                 lookup_key = None
@@ -204,14 +207,15 @@ class ModelTypeTranspiler(object):
                     field_info.serializer_field_name + ": {" + schema + "}"
                 )
             else:
-                schema = f"fieldName:'{field_info.serializer_field_name}'," \
-                         f"fieldType:'{field_info.serializer.__class__.__name__}'," \
-                         f"nullable:{LiteralTranspiler.transpile(field_info.model_field.null)}," \
-                         f"isReadOnly:{LiteralTranspiler.transpile(field_info.serializer.read_only)}," \
-                         f"relatedModel: () => {field_info.model_field.related_model.__name__}"
-                field_schemas.append(
-                    field_info.serializer_field_name + ": {" + schema + "}"
-                )
+                if field_info.model_field.related_model in self.model_pool:
+                    schema = f"fieldName:'{field_info.serializer_field_name}'," \
+                             f"fieldType:'{field_info.serializer.__class__.__name__}'," \
+                             f"nullable:{LiteralTranspiler.transpile(field_info.model_field.null)}," \
+                             f"isReadOnly:{LiteralTranspiler.transpile(field_info.serializer.read_only)}," \
+                             f"relatedModel: () => {field_info.model_field.related_model.__name__}"
+                    field_schemas.append(
+                        field_info.serializer_field_name + ": {" + schema + "}"
+                    )
 
         return ", \n".join(field_schemas)
 
@@ -229,6 +233,7 @@ class ModelTypeTranspiler(object):
             create_url=self._url_prefix + self.model_type.create_view.endpoint.url(TYPESCRIPT_ARG_PK_REF),
             list_url=self._url_prefix + self.model_type.list_view.endpoint.url(),
             delete_url=self._url_prefix + self.model_type.delete_view.endpoint.url(TYPESCRIPT_THIS_PK_REF),
+            # -----
             model_interface_types=self.model_interface_types(),
             model_class_types=self.model_class_types(),
             lookups_interface_name=model_lookups_name(self.model_type.model_cls),
