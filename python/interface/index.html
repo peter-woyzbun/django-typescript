@@ -100,7 +100,22 @@
 </div></div>
                 <div class="col-md-9" role="main">
 
-<h1 id="interfaces"><a class="toclink" href="#interfaces">Interfaces</a></h1></div>
+<h1 id="interfaces"><a class="toclink" href="#interfaces">Interfaces</a></h1>
+<p>The <code>Interface</code> defines what <code>ModelType</code>'s and <code>ObjectType</code>'s will be
+exposed on the TypeScript side. Two things are mandatory:</p>
+<ol>
+<li>The subclass of <code>interface.Interface</code> is also called <code>Interface</code></li>
+<li>A <code>transpile_dest</code> keyword argument must be supplied to the subclasses
+    class init arguments. This tells the transpiler where the transpiled
+    code should go.</li>
+</ol>
+<pre><code>from django_typescript import interface
+from .models import SomeModel
+
+class Interface(interface.Interface, transpile_dest='src/...'):
+    some_model = interface.ModelType(model_cls=SomeModel)
+
+</code></pre></div>
         </div>
 
         <footer class="col-md-12">
