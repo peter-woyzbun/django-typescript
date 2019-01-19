@@ -50,6 +50,9 @@ const [polls]: Poll[] = await user.polls()
 
 const [filteredPolls] = await user.polls({name__startswith: 'prefix'})
 
+// This will cause a type error, because `fakefield` does not exist.
+const [filteredPolls] = await user.polls({fakefield__startswith: 'prefix'})
+
 const [newPoll, validationErrors] = Poll.objects.create({user_id: user.pk(), name: 'Poll name'})
 
 if (newPoll){
@@ -70,6 +73,9 @@ let [questionPoll] = await pollQuestion.poll
 let [pollQuestion] = Question.objects.get(pollQuestion.pk(), 'poll')
 
 let [questionPoll] = pollQuestion.poll
+
+// Prefetch the associated Question instance, and its associated Poll instance.
+const [questionComment] = QuestionComment.objects.get(10, {question: 'poll'})
 
 ```
 
