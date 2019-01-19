@@ -6,7 +6,7 @@ provide classes that closely resemble their Django/Python counterparts.
 
 ### In Python/Django
 
-```
+```python
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -40,7 +40,7 @@ class QuestionComment(models.Model):
 
 ### In TypeScript
 
-```
+```typescript
 import {User, Poll, Question, QuestionComment} from './server/models'
 
 
@@ -57,6 +57,9 @@ if (newPoll){
 } else {
     // Do something with validation errors.
 }
+
+// This will cause a type error, because 'INVALID_STATE' is not a possible choice.
+const [invalidPoll] = Poll.objects.create({user_id: user.pk(), name: 'Poll 2 name', state: 'INVALID_STATE'})
 
 let [pollQuestion] = Question.objects.create({poll_id: newPoll.pk(), question_text: 'Some text'})
 
