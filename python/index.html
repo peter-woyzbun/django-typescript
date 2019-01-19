@@ -85,8 +85,7 @@
         <li class="main active"><a href="#python-server">Python / Server</a></li>
             <li><a href="#interfaces">Interfaces</a></li>
             <li><a href="#model-types">Model Types</a></li>
-            <li><a href="#class-based-definition">Class Based Definition</a></li>
-            <li><a href="#inline-definition">Inline Definition</a></li>
+            <li><a href="#object-types">Object Types</a></li>
     </ul>
 </div></div>
                 <div class="col-md-9" role="main">
@@ -138,7 +137,7 @@ correspond to the following actions:</p>
 'inline'. Note that their respective <code>Interface</code> assignments are different.
 The class-based definition requires using the <code>ModelType.as_type()</code>
 class method.</p>
-<h2 id="class-based-definition"><a class="toclink" href="#class-based-definition">Class Based Definition</a></h2>
+<h3 id="class-based-definition"><a class="toclink" href="#class-based-definition">Class Based Definition</a></h3>
 <p>All init arguments are passed to the class init arguments.</p>
 <pre><code class="python">from django_typescript import interface
 
@@ -153,7 +152,30 @@ class Interface(interface.Interface):
 
 </code></pre>
 
-<h2 id="inline-definition"><a class="toclink" href="#inline-definition">Inline Definition</a></h2>
+<h4 id="methods"><a class="toclink" href="#methods">Methods</a></h4>
+<p>Class-based <code>ModelType</code>'s can also be provided with 'methods' and 'static
+methods'.</p>
+<pre><code class="python">from django_typescript import interface
+
+from myapp.models import Thing
+
+class ThingModelType(interface.ModelType, model_cls=User):
+
+    @interface.ModelType.method(a=serializers.CharField(), b=serializers.CharField())
+    def thing_method(self: Thing, a, b):
+        return {'a': a, 'b': b, 'id': self.pk}
+
+    @interface.ModelType.static_method(a=serializers.CharField(), b=serializers.CharField())
+    def thing_static_method(self, a, b):
+        return {'a': a, 'b': b}
+
+
+class Interface(interface.Interface):
+    users = UserModelType.as_type()
+
+</code></pre>
+
+<h3 id="inline-definition"><a class="toclink" href="#inline-definition">Inline Definition</a></h3>
 <pre><code class="python">from django_typescript import interface
 
 from myapp.models import User
@@ -161,7 +183,9 @@ from myapp.models import User
 class Interface(interface.Interface):
     users = interface.ModelType(model_cls=User)
 
-</code></pre></div>
+</code></pre>
+
+<h2 id="object-types"><a class="toclink" href="#object-types">Object Types</a></h2></div>
         </div>
 
         <footer class="col-md-12">
