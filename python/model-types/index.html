@@ -110,12 +110,30 @@ patterns necessary to excute model logic via TypeScript. The views
 correspond to the following actions:</p>
 <ul>
 <li>Get</li>
+<li>Get or create</li>
 <li>Create</li>
 <li>Update</li>
 <li>Delete</li>
 <li>List (and filter)</li>
 </ul>
+<p>It takes the following init arguments:</p>
+<ul>
+<li><code>model_cls</code> - The associated Django <code>Model</code> class.</li>
+<li><code>create_permissions</code> - An optional tuple of <code>rest_framework</code> permission
+  classes to assign to the 'create' and 'get or create' view.</li>
+<li><code>get_permissions</code> - An optional tuple of <code>rest_framework</code> permission
+  classes to assign to the 'get' view.</li>
+<li><code>delete_permissions</code> - An optional tuple of <code>rest_framework</code> permission
+  classes to assign to the 'delete' view.</li>
+<li><code>update_permissions</code> - An optional tuple of <code>rest_framework</code> permission
+  classes to assign to the 'get' update</li>
+</ul>
+<p>A <code>ModelType</code> can be defined in two different ways: 'class-based' and
+'inline'. Note that their respective <code>Interface</code> assignments are different.
+The class-based definition requires using the <code>ModelType.as_type()</code>
+class method.</p>
 <h2 id="class-based-definition"><a class="toclink" href="#class-based-definition">Class Based Definition</a></h2>
+<p>All init arguments are passed to the class init arguments.</p>
 <pre><code class="python">from django_typescript import interface
 
 from myapp.models import User
@@ -124,7 +142,7 @@ class UserModelType(interface.ModelType, model_cls=User):
     pass
 
 
- class Interface(interface.Interface):
+class Interface(interface.Interface):
     users = UserModelType.as_type()
 
 </code></pre>
