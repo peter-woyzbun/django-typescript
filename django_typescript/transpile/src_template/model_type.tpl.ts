@@ -22,7 +22,6 @@ export class __$queryset_name__ {
     protected _or: __$queryset_name__[] = [];
     protected _prefetch: __$prefetch_type_name__[];
 
-
     constructor(lookups: __$lookups_interface_name__ = {}, excludedLookups: __$lookups_interface_name__ = {}){
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
@@ -67,6 +66,19 @@ export class __$queryset_name__ {
         let [responseData, statusCode, err] = await serverClient.get(`'{{ get_url }}'`, urlQuery);
         if (statusCode === 200){
             return [new __$model_name__(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async getOrCreate(lookup:Partial<__$field_interface_name__>,  defaults: Partial<__$field_interface_name__> = {}): Promise<ServerPayload<[__$model_name__, boolean]>>{
+        const data = {lookup, defaults};
+        let [responseData, statusCode, err] = await serverClient.post(`'{{ get_or_create_url }}'`, data);
+
+        if (statusCode === 201){
+            return [[new __$model_name__(responseData), true], responseData, statusCode, err]
+        }
+        if (statusCode === 200){
+            return [[new __$model_name__(responseData), false], responseData, statusCode, err]
         }
         return [undefined, responseData, statusCode, err]
     }
@@ -163,6 +175,10 @@ export class __$model_name__ implements __$field_interface_name__{
         /*< return  this.{{ pk_field_name }}  >*/
     }
 
+    public async refresh(...prefetchKeys: __$prefetch_type_name__[]){
+        return __$queryset_name__.get(this.pk(), ...prefetchKeys)
+    }
+
     public async update(data: Partial<__$field_interface_name__>): Promise<ServerPayload<__$model_name__>>{
         let [responseData, statusCode, err] = await serverClient.post(`'{{ update_url}}'`, data);
          if (statusCode in SuccessfulHttpStatusCodes){
@@ -177,7 +193,7 @@ export class __$model_name__ implements __$field_interface_name__{
 
      /*<{% for reverse_relation in reverse_relations %}
       public {{ reverse_relation.name }}(lookups: {{ reverse_relation.lookups_type }} = {}){
-           return new {{ reverse_relation.queryset_name }}({...lookups, ...{ {{ reverse_relation.lookup_key }}: this.pk()}})
+           return new {{ reverse_relation.queryset_name }}({...lookups, ...{ {{ reverse_relation.lookup_key }}}})
       }
       {% endfor %}>*/
 

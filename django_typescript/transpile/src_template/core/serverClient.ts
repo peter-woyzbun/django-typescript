@@ -94,7 +94,42 @@ export class ServerClient {
         }
         return fullUrl
     }
+}
+
+// -------------------------
+// List Query
+//
+// -------------------------
+
+export class ListQuery {
+
+    private prefetchKeys;
+    private fields;
+    private query;
+    private pageNum;
+    private pageSize;
 
 
+    constructor(prefetchKeys?: Array<string | object>, fields?: string[], query?: object, pageNum?: number,
+                pageSize?: number) {
+        this.prefetchKeys = prefetchKeys;
+        this.fields = fields;
+        this.query = query;
+        this.pageNum = pageNum;
+        this.pageSize = pageSize;
+    }
+
+    urlString(){
+        let urlString = '';
+        if (this.query){urlString += 'query=' + JSON.stringify(this.query)}
+        if (this.fields){urlString += 'fields=' + JSON.stringify(this.fields)}
+        if (this.prefetchKeys){urlString += 'prefetch=' + JSON.stringify(this.fields)}
+    }
+
+}
+
+
+const buildUrlQuery = (paramValues: object) => {
+    let urlQuery = ''
 
 }

@@ -116,6 +116,11 @@ export type ServerDataPayload<PayloadType> = [PayloadType | undefined, ResponseS
 //
 // -------------------------
 
+export interface FieldSchemaChoice{
+    value: any
+    label: string
+}
+
 export interface FieldSchema<FieldTypes>{
     readonly fieldName: string;
     readonly fieldType: FieldTypes;
@@ -124,7 +129,7 @@ export interface FieldSchema<FieldTypes>{
     readonly description?: string;
     readonly defaultValue?: any;
     readonly relatedModel?: () => any;
-    readonly choices?: any[]
+    readonly choices?: FieldSchemaChoice[]
 }
 
 export interface ModelFieldsSchema<FieldTypes>{

@@ -42,6 +42,10 @@ class ModelInspector(object):
     def reverse_relation_fields(self) -> List[types.ReverseRelationField]:
         return [f for f in self.model_fields if isinstance(f, types.REVERSE_RELATION_FIELDS)]
 
+    @cached_property
+    def reverse_one_to_one_fields(self) -> List[models.OneToOneRel]:
+        return [f for f in self.model_fields if isinstance(f, models.OneToOneRel)]
+
     @property
     def relation_fields(self) -> List[types.RelationField]:
         return self.forward_relation_fields + self.reverse_relation_fields

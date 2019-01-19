@@ -1,7 +1,7 @@
 import test from 'ava';
 
 import {serverClient} from "./server/client";
-import {Thing, ThingChild, ThingChildChild} from './server/models'
+import {Thing, ThingChild, ThingChildChild, ThingOneToOneTarget} from './server/models'
 import {GenericObjectType} from "./server/objects";
 
 
@@ -26,10 +26,31 @@ test('create_and_get', async t => {
 	t.is(thingId, retrievedThing.pk());
 });
 
+test('refresh', async t => {
+    const [createdThing, responseData, statusCode, err] = await Thing.objects.create({name: 'test_thing'});
+    const thingId = createdThing.pk();
+    const [thingToUpdate] = await Thing.objects.get(thingId);
+    await thingToUpdate.update({name: 'new_name'});
+    const [refreshedThing] = await createdThing.refresh();
+	t.is(refreshedThing.name, 'new_name');
+});
+
 test('create_invalid', async t => {
     const [createdThing, responseData, statusCode, err] = await Thing.objects.create({name: 'invalid_name'});
     t.is(createdThing, undefined);
 	t.is(statusCode, 400);
+});
+
+test('get_or_create_created', async t => {
+    const [[thing, created], responseData, statusCode, err] = await Thing.objects.getOrCreate({name: 'test_thing'});
+	t.is(created, true);
+});
+
+test('get_or_create_not_created', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+
+    const [[thing, created], responseData, statusCode, err] = await Thing.objects.getOrCreate({name: 'test_thing'});
+	t.is(created, false);
 });
 
 test('update', async t => {
@@ -89,6 +110,13 @@ test('get_reverse_related', async t => {
 	t.is(childThings.length, 1);
 });
 
+test('get_reverse_related_one_to_one', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [oneToOneTarget] = await ThingOneToOneTarget.objects.create({sibling_thing_id: createdThing.pk()});
+    const [createdThingWithOneToOne] = await Thing.objects.get(createdThing.pk(), 'one_to_one_target');
+	t.is(oneToOneTarget.pk(), createdThingWithOneToOne.one_to_one_target.pk());
+});
+
 test('get_forward_relation', async t => {
     const [createdThing] = await Thing.objects.create({name: 'test_thing'});
     const [childThing] = await ThingChild.objects.create({parent_id: createdThing.pk()});
@@ -96,6 +124,14 @@ test('get_forward_relation', async t => {
     const parentThing = await childThing.parent;
 	t.is(createdThing.pk(), parentThing.pk());
 });
+
+test('get_forward_relation_one_to_one', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [oneToOneTarget] = await ThingOneToOneTarget.objects.create({sibling_thing_id: createdThing.pk()});
+    const siblingThing = await oneToOneTarget.sibling_thing;
+	t.is(createdThing.pk(), siblingThing.pk());
+});
+
 
 test('get_forward_relation_prefetch', async t => {
     const [createdThing] = await Thing.objects.create({name: 'test_thing'});

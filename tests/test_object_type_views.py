@@ -61,7 +61,7 @@ class GenericObjectType(interface.ObjectType, serializer_cls=ObjectTypeSerialize
         return {'a': a, 'b': b}
 
 
-class Interface(interface.Interface):
+class Interface(interface.Interface, transpile_dest=''):
     object_types = GenericObjectType
 
 

@@ -9,12 +9,13 @@ from django_typescript.model_types.serializer import ModelTypeSerializer
 from django_typescript.core.model_inspector import ModelInspector
 from django_typescript.core import types
 from django_typescript.model_types.views import (CreateView,
-                                         DeleteView,
-                                         GetView,
-                                         ListView,
-                                         ModelMethodView,
-                                         ModelStaticMethodView,
-                                         UpdateView)
+                                                 DeleteView,
+                                                 GetView,
+                                                 GetOrCreateView,
+                                                 ListView,
+                                                 ModelMethodView,
+                                                 ModelStaticMethodView,
+                                                 UpdateView)
 
 
 URL_PARAM = '<pk>'
@@ -69,6 +70,9 @@ class ModelType(object):
                                       permission_classes=delete_permissions)
         self.get_view = GetView(serializer=self.serializer, serializer_cls=self.serializer.base_serializer_cls,
                                 permission_classes=get_permissions)
+        self.get_or_create_view = GetOrCreateView(serializer=self.serializer,
+                                                  serializer_cls=self.serializer.base_serializer_cls,
+                                                  permission_classes=create_permissions)
         self.list_view = ListView(serializer=self.serializer, serializer_cls=self.serializer.base_serializer_cls,
                                   permission_classes=get_permissions)
         self.update_view = UpdateView(serializer=self.serializer, serializer_cls=self.serializer.base_serializer_cls,
@@ -158,6 +162,7 @@ class ModelType(object):
             path(self.create_view.endpoint.url(), self.create_view.view(), name='create'),
             path(self.delete_view.endpoint.url(URL_PARAM), self.delete_view.view(), name='delete'),
             path(self.get_view.endpoint.url(URL_PARAM), self.get_view.view(), name='get'),
+            path(self.get_or_create_view.endpoint.url(), self.get_or_create_view.view(), name='get_or_create'),
             path(self.list_view.endpoint.url(), self.list_view.view(), name='list'),
             path(self.update_view.endpoint.url(URL_PARAM), self.update_view.view(), name='update'),
         ]

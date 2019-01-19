@@ -33,7 +33,7 @@ class Transpiler(object):
 
     @property
     def destination_dir(self):
-        return os.path.join(self.interface.TRANSPILE_DEST, self.DEST_SOURCE_DIRNAME)
+        return os.path.join(self.interface._TRANSPILE_DEST, self.DEST_SOURCE_DIRNAME)
 
     def _initialize_destination(self):
         if not os.path.exists(self.destination_dir):

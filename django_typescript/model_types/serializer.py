@@ -139,7 +139,6 @@ class ModelTypeSerializer(object):
         class Meta:
             model = self.model_cls
             fields = self.field_names + list(prefetch_fields.keys())
-        print(prefetch_fields)
 
         class_dict = {
             **{'Meta': Meta},

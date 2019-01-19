@@ -2,10 +2,9 @@ site_name: Django TypeScript
 site_url: https://www.github.com
 site_description: Django TypeScript
 
-repo_url: https://github.com/encode/django-rest-framework
-
-theme_dir: docs_theme
-
+repo_url: https://github.com/peter-woyzbun/django-typescript
+extra_css:
+    - style.css
 markdown_extensions:
  - toc:
     anchorlink: True

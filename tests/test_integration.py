@@ -8,7 +8,7 @@ from django_typescript.test import IntegrationTestCase
 from django_typescript import interface
 from django_typescript.transpile import Transpiler
 
-from .models import ThingSerializer, Thing, ThingChildSerializer, ThingChild, ThingChildChild
+from .models import ThingSerializer, Thing, ThingChildSerializer, ThingChild, ThingChildChild, ThingOneToOneTarget
 
 
 # =================================
@@ -63,10 +63,10 @@ class GenericObjectType(interface.ObjectType, serializer_cls=ObjectTypeSerialize
         return {'a': a, 'b': b}
 
 
-class Interface(interface.Interface):
-    TRANSPILE_DEST = TS_TRANSPILE_DEST
+class Interface(interface.Interface, transpile_dest=TS_TRANSPILE_DEST):
 
     things = ThingType.as_type()
+    thing_siblings = interface.ModelType(model_cls=ThingOneToOneTarget)
     child_things = interface.ModelType(model_cls=ThingChild)
     child_child_things = interface.ModelType(model_cls=ThingChildChild)
     object_types = GenericObjectType
@@ -98,8 +98,20 @@ class TestIntegration(IntegrationTestCase):
         self._run_ts_test(test_name='create_and_get')
 
     @override_settings(ROOT_URLCONF=__name__)
+    def test_refresh(self):
+        self._run_ts_test(test_name='refresh')
+
+    @override_settings(ROOT_URLCONF=__name__)
     def test_create_invalid(self):
         self._run_ts_test(test_name='create_invalid')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_get_or_create_created(self):
+        self._run_ts_test(test_name='get_or_create_created')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_get_or_create_not_created(self):
+        self._run_ts_test(test_name='get_or_create_not_created')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_create_and_delete(self):
@@ -130,12 +142,20 @@ class TestIntegration(IntegrationTestCase):
         self._run_ts_test(test_name='filter_or')
 
     @override_settings(ROOT_URLCONF=__name__)
+    def test_get_reverse_related_one_to_one(self):
+        self._run_ts_test(test_name='get_reverse_related_one_to_one')
+
+    @override_settings(ROOT_URLCONF=__name__)
     def test_get_reverse_related(self):
         self._run_ts_test(test_name='get_reverse_related')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_get_forward_relation(self):
         self._run_ts_test(test_name='get_forward_relation')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_get_forward_relation_one_to_one(self):
+        self._run_ts_test(test_name='get_forward_relation_one_to_one')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_get_forward_relation_prefetch(self):

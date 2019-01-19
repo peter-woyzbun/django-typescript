@@ -21,7 +21,13 @@ class Interface(object):
 
     """
 
-    TRANSPILE_DEST: str = None
+    _TRANSPILE_DEST: str = None
+
+    def __init_subclass__(cls, **kwargs):
+        transpile_dest = kwargs.get('transpile_dest')
+        assert transpile_dest is not None, 'A `transpile_dest` argument must be supplied to' \
+                                            ' any subclass of `Interface`.'
+        cls._TRANSPILE_DEST = transpile_dest
 
     @classmethod
     def model_types(cls) -> typing.List[ModelType]:

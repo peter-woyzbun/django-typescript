@@ -3,8 +3,8 @@ import json
 from django.db import models
 
 from django_typescript.core import endpoints
-from django_typescript.model_types.prefetch import prefetch_select_related
 from django_typescript.model_types.view import ModelView, Response, status
+from django_typescript.model_types.queryset import ModelTypeQuerysetBuilder, ModelTypeQuerysetPayloadBuilder
 
 
 # =================================
@@ -20,28 +20,19 @@ class GetView(ModelView):
                            permission_classes=permission_classes,
                            endpoint=endpoints.Endpoint(endpoints.Param, 'get'))
 
-    def _base_queryset(self, request) -> models.QuerySet:
-        prefetch_trees = None
-        prefetch_json = request.query_params.get('prefetch')
-        if prefetch_json:
-            prefetch_trees = json.loads(prefetch_json)
-        queryset = self.model_cls.objects
-        if prefetch_trees:
-            queryset = queryset.select_related(
-                *[prefetch_select_related(prefetch_tree) for prefetch_tree in prefetch_trees])
-        return queryset
-
     def _view_function(self):
         def get_view(request, pk):
-            prefetch_trees = None
-            prefetch_json = request.query_params.get('prefetch')
-            if prefetch_json:
-                prefetch_trees = json.loads(prefetch_json)
-            queryset = self.model_cls.objects
-            if prefetch_trees:
-                queryset = queryset.select_related(*[prefetch_select_related(prefetch_tree) for prefetch_tree in prefetch_trees])
-            instance = queryset.get(pk=pk)
-
-            serializer = self._get_serializer(instance, prefetch_trees=prefetch_trees, context={'request': request})
-            return Response(serializer.data)
+            queryset = self.model_cls.objects.all()
+            queryset_builder = ModelTypeQuerysetBuilder.for_request(request=request)
+            queryset = queryset_builder.build_queryset(queryset=queryset)
+            if queryset_builder.prefetch_trees:
+                serializer_cls = self.serializer.build_prefetch_serializer_tree(
+                    prefetch_trees=queryset_builder.prefetch_trees
+                )
+            else:
+                serializer_cls = self.serializer_cls
+            queryset = queryset.get(pk=pk)
+            payload_builder = ModelTypeQuerysetPayloadBuilder.for_request(request=request, queryset=queryset,
+                                                                          many=False)
+            return Response(payload_builder.payload(serializer_cls=serializer_cls))
         return get_view

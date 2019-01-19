@@ -11,6 +11,12 @@ import {
 export type FieldType = '{{ field_types }}'
 
 
+
+// -------------------------
+// Flatten Lookups
+//
+// -------------------------
+
 const flattenLookups = function(ob) {
 	let toReturn = {};
 	if (Array.isArray(ob)){return ob}

@@ -29,7 +29,7 @@ class ThingType(interface.ModelType, model_cls=Thing):
             raise interface.ValidationError({'name': 'Name invalid.'})
 
 
-class Interface(interface.Interface):
+class Interface(interface.Interface, transpile_dest=''):
     things = ThingType.as_type()
     child_things = interface.ModelType(model_cls=ThingChild)
 
@@ -63,6 +63,21 @@ class TestModelTypeViews(TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Thing.objects.filter(name='test').exists())
 
+    def test_get_or_create_view_created(self):
+        data = {'lookup': {'name': 'test'}, 'defaults': {'number': 10}}
+        view_url = reverse('thing:get_or_create')
+        response = self.client.post(view_url, data=data, format='json')
+        self.assertEqual(response.data['number'], 10)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Thing.objects.filter(name='test').exists())
+
+    def test_get_or_create_view_not_created(self):
+        thing = Thing.objects.create(name='test')
+        data = {'lookup': {'name': 'test'}, 'defaults': {'number': 10}}
+        view_url = reverse('thing:get_or_create')
+        response = self.client.post(view_url, data=data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_create_view_validate(self):
         data = {'name': 'invalid_name'}
         view_url = reverse('thing:create')
@@ -72,8 +87,6 @@ class TestModelTypeViews(TestCase):
     def test_update_view(self):
         thing = Thing.objects.create()
         view_url = reverse('thing:update', kwargs={'pk': thing.id})
-        print("VIEW URL!!!")
-        print(view_url)
         data = {'name': 'new name'}
         response = self.client.post(view_url, data=data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -156,6 +169,25 @@ class TestModelTypeViews(TestCase):
         view_url += '?query=' + query_str + "&fields=" + json.dumps(['name'])
         response = self.client.get(view_url)
         self.assertEqual(set(response.data[0].keys()), {'name'})
+
+    def test_list_view_prefetch_paginated(self):
+        thing_1 = Thing.objects.create(name='1')
+        child_thing_1 = ThingChild.objects.create(parent=thing_1)
+        child_thing_2 = ThingChild.objects.create(parent=thing_1)
+
+        view_url = reverse('thing_child:list')
+        query = {
+            'filters': {},
+            'exclude': {},
+            'or_': []
+        }
+        query_str = json.dumps(query)
+        view_url += '?query=' + query_str + "&page=1&pagesize=2" + "&prefetch=" + json.dumps(['parent'])
+        response = self.client.get(view_url)
+        self.assertEqual(response.data['num_results'], 2)
+        self.assertEqual(response.data['num_pages'], 1)
+        self.assertEqual(len(response.data['data']), 2)
+        self.assertTrue('parent' in response.data['data'][0])
 
     def test_list_view_paginated(self):
         thing_1 = Thing.objects.create(name='1')

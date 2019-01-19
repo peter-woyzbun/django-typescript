@@ -27,6 +27,10 @@ class Thing(TestModel):
     number = models.IntegerField(null=True)
 
 
+class ThingOneToOneTarget(TestModel):
+    sibling_thing = models.OneToOneField(Thing, related_name='one_to_one_target', on_delete=models.CASCADE)
+
+
 class ThingChild(TestModel):
     parent = models.ForeignKey(Thing, related_name='children', on_delete=models.CASCADE)
     name = models.CharField(null=True, max_length=200)

@@ -65,9 +65,7 @@ class TestTranspiler(TestCase):
 
     def test_transpile(self):
         with tempfile.TemporaryDirectory() as tmp_dest_dir:
-            class Interface(interface.Interface):
-                TRANSPILE_DEST = pathlib.Path(tmp_dest_dir)
-
+            class Interface(interface.Interface, transpile_dest=pathlib.Path(tmp_dest_dir)):
                 things = ThingType.as_type()
                 object_types = GenericObjectType
             transpiler = Transpiler(interface=Interface)
@@ -82,9 +80,7 @@ class TestTranspiler(TestCase):
         import sys
 
         with tempfile.TemporaryDirectory() as tmp_dest_dir:
-            class Interface(interface.Interface):
-                TRANSPILE_DEST = pathlib.Path(tmp_dest_dir)
-
+            class Interface(interface.Interface, transpile_dest=pathlib.Path(tmp_dest_dir)):
                 things = ThingType.as_type()
                 object_types = GenericObjectType
             with override_settings(DJANGO_TS_INTERFACE="tests.test_transpiler"):

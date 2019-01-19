@@ -9,8 +9,14 @@ import {
     ServerDataPayload
 } from './core'
 
-export type FieldType = 'ForeignKey' | 'IntegerField' | 'AutoField' | 'CharField'
+export type FieldType = 'ForeignKey' | 'CharField' | 'OneToOneField' | 'AutoField' | 'IntegerField'
 
+
+
+// -------------------------
+// Flatten Lookups
+//
+// -------------------------
 
 const flattenLookups = function(ob) {
     let toReturn = {};
@@ -44,7 +50,7 @@ const flattenLookups = function(ob) {
 // -------------------------
 
 
-export type ThingPrefetchKey = never
+export type ThingPrefetchKey = 'one_to_one_target' | { one_to_one_target: ThingOneToOneTargetPrefetchKey }
 
 
 
@@ -103,7 +109,6 @@ export interface ThingQuerySetLookups {
     number__isnull?: boolean
     number__regex?: number
     number__iregex?: number
-    children?: ThingChildQuerySetLookups
 }
 
 export class ThingQuerySet {
@@ -112,7 +117,6 @@ export class ThingQuerySet {
     protected excludedLookups: ThingQuerySetLookups;
     protected _or: ThingQuerySet[] = [];
     protected _prefetch: ThingPrefetchKey[];
-
 
     constructor(lookups: ThingQuerySetLookups = {}, excludedLookups: ThingQuerySetLookups = {}) {
         this.lookups = lookups;
@@ -158,6 +162,19 @@ export class ThingQuerySet {
         let [responseData, statusCode, err] = await serverClient.get(`thing/${primaryKey}/get/`, urlQuery);
         if (statusCode === 200) {
             return [new Thing(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async getOrCreate(lookup: Partial<ThingFields>, defaults: Partial<ThingFields> = {}): Promise<ServerPayload<[Thing, boolean]>> {
+        const data = { lookup, defaults };
+        let [responseData, statusCode, err] = await serverClient.post(`thing/get-or-create/`, data);
+
+        if (statusCode === 201) {
+            return [[new Thing(responseData), true], responseData, statusCode, err]
+        }
+        if (statusCode === 200) {
+            return [[new Thing(responseData), false], responseData, statusCode, err]
         }
         return [undefined, responseData, statusCode, err]
     }
@@ -241,6 +258,7 @@ export class Thing implements ThingFields {
     readonly id: number
     name?: string
     number?: number
+    @foreignKeyField(() => ThingOneToOneTarget) one_to_one_target?: ThingOneToOneTarget
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
@@ -258,6 +276,10 @@ export class Thing implements ThingFields {
         return this.id
     }
 
+    public async refresh(...prefetchKeys: ThingPrefetchKey[]) {
+        return ThingQuerySet.get(this.pk(), ...prefetchKeys)
+    }
+
     public async update(data: Partial<ThingFields>): Promise<ServerPayload<Thing>> {
         let [responseData, statusCode, err] = await serverClient.post(`thing/${this.pk()}/update/`, data);
         if (statusCode in SuccessfulHttpStatusCodes) {
@@ -271,7 +293,7 @@ export class Thing implements ThingFields {
     }
 
     public children(lookups: ThingChildQuerySetLookups = {}) {
-        return new ThingChildQuerySet({ ...lookups, ...{ parent__id: this.pk() } })
+        return new ThingChildQuerySet({ ...lookups, ...{ parent: { id: this.pk() } } })
     }
 
 
@@ -283,6 +305,225 @@ export class Thing implements ThingFields {
     public static async thing_static_method(data: { a: string, b: string }) {
         return await serverClient.post(`thing/thing-static-method/`, data);
     }
+
+
+
+}
+
+// -------------------------
+// ThingOneToOneTargetQuerySet
+//
+// -------------------------
+
+
+export type ThingOneToOneTargetPrefetchKey = 'sibling_thing' | { sibling_thing: ThingPrefetchKey }
+
+
+
+export interface ThingOneToOneTargetQuerySetLookups {
+    id?: number
+    id__exact?: number
+    id__iexact?: number
+    id__gt?: number
+    id__gte?: number
+    id__lt?: number
+    id__lte?: number
+    id__in?: number[]
+    id__contains?: number
+    id__icontains?: number
+    id__startswith?: number
+    id__istartswith?: number
+    id__endswith?: number
+    id__iendswith?: number
+    id__range?: [number, number]
+    id__isnull?: boolean
+    id__regex?: number
+    id__iregex?: number
+    sibling_thing?: ThingQuerySetLookups
+}
+
+export class ThingOneToOneTargetQuerySet {
+
+    protected lookups: ThingOneToOneTargetQuerySetLookups;
+    protected excludedLookups: ThingOneToOneTargetQuerySetLookups;
+    protected _or: ThingOneToOneTargetQuerySet[] = [];
+    protected _prefetch: ThingOneToOneTargetPrefetchKey[];
+
+    constructor(lookups: ThingOneToOneTargetQuerySetLookups = {}, excludedLookups: ThingOneToOneTargetQuerySetLookups = {}) {
+        this.lookups = lookups;
+        this.excludedLookups = excludedLookups;
+    }
+
+    public prefetch(...prefetchKeys: ThingOneToOneTargetPrefetchKey[]): this {
+        const existingPrefetch: ThingOneToOneTargetPrefetchKey[] = this._prefetch ? (this._prefetch) : ([] as ThingOneToOneTargetPrefetchKey[]);
+        this._prefetch = [...existingPrefetch, ...prefetchKeys];
+        return this
+    }
+
+    public static all(): ThingOneToOneTargetQuerySet {
+        return new ThingOneToOneTargetQuerySet()
+    }
+
+    public static filter(lookups: Partial<ThingOneToOneTargetQuerySetLookups>): ThingOneToOneTargetQuerySet {
+        return new ThingOneToOneTargetQuerySet(lookups)
+    }
+
+    public filter(lookups: Partial<ThingOneToOneTargetQuerySetLookups>): ThingOneToOneTargetQuerySet {
+        return new ThingOneToOneTargetQuerySet({ ...this.lookups, ...lookups }, this.excludedLookups)
+    }
+
+    public static exclude(lookups: Partial<ThingOneToOneTargetQuerySetLookups>): ThingOneToOneTargetQuerySet {
+        return new ThingOneToOneTargetQuerySet({}, lookups)
+    }
+
+    public exclude(lookups: Partial<ThingOneToOneTargetQuerySetLookups>): ThingOneToOneTargetQuerySet {
+        return new ThingOneToOneTargetQuerySet({}, { ...this.excludedLookups, ...lookups })
+    }
+
+    public or(queryset: ThingOneToOneTargetQuerySet): this {
+        this._or.push(queryset);
+        return this
+    }
+
+    public static async get(primaryKey: number, ...prefetchKeys: ThingOneToOneTargetPrefetchKey[]): Promise<ServerPayload<ThingOneToOneTarget>> {
+        let urlQuery = '';
+        if (prefetchKeys) {
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target/${primaryKey}/get/`, urlQuery);
+        if (statusCode === 200) {
+            return [new ThingOneToOneTarget(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async getOrCreate(lookup: Partial<ThingOneToOneTargetFields>, defaults: Partial<ThingOneToOneTargetFields> = {}): Promise<ServerPayload<[ThingOneToOneTarget, boolean]>> {
+        const data = { lookup, defaults };
+        let [responseData, statusCode, err] = await serverClient.post(`thing-one-to-one-target/get-or-create/`, data);
+
+        if (statusCode === 201) {
+            return [[new ThingOneToOneTarget(responseData), true], responseData, statusCode, err]
+        }
+        if (statusCode === 200) {
+            return [[new ThingOneToOneTarget(responseData), false], responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async create(data: Partial<ThingOneToOneTargetFields>): Promise<ServerPayload<ThingOneToOneTarget>> {
+        let [responseData, statusCode, err] = await serverClient.post(`thing-one-to-one-target/create/`, data);
+
+        if (statusCode === 201) {
+            return [new ThingOneToOneTarget(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public serialize(): object {
+        return {
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
+            or_: this._or.map((queryset) => queryset.serialize())
+        }
+    }
+
+    public async values(...fields: Array<[keyof ThingOneToOneTargetFields]>): Promise<ServerDataPayload<object[]>> {
+        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
+        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        return [responseData, statusCode, err]
+
+    }
+
+    public async pageValues(pageNum: number = 1, pageSize: number = 25,
+        ...fields: Array<[keyof ThingOneToOneTargetFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
+        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        return [responseData, statusCode, err]
+    }
+
+    public async retrieve(): Promise<ServerPayload<ThingOneToOneTarget[]>> {
+        let urlQuery = "query=" + JSON.stringify(this.serialize());
+        if (this._prefetch) {
+            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
+        }
+        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData.map((data) => new ThingOneToOneTarget(data)), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<ThingOneToOneTarget>>> {
+        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        if (this._prefetch) {
+            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
+        }
+        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [{
+                ...responseData,
+                data: responseData.data.map((data) => new ThingOneToOneTarget(data))
+            }, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+}
+
+
+// -------------------------
+// ThingOneToOneTarget
+//
+// -------------------------
+
+
+export interface ThingOneToOneTargetFields {
+    readonly id: number
+    sibling_thing_id: number
+}
+
+
+export class ThingOneToOneTarget implements ThingOneToOneTargetFields {
+
+    readonly id: number
+    sibling_thing_id: number
+    @foreignKeyField(() => Thing) sibling_thing?: Thing
+
+    public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
+        sibling_thing_id: { fieldName: 'sibling_thing_id', fieldType: 'IntegerField', nullable: false, isReadOnly: false, relatedModel: () => Thing }
+    }
+
+    constructor(data: ThingOneToOneTargetFields) {
+        Object.assign(this, data);
+    }
+
+    static objects = ThingOneToOneTargetQuerySet;
+
+    public pk(): number {
+        return this.id
+    }
+
+    public async refresh(...prefetchKeys: ThingOneToOneTargetPrefetchKey[]) {
+        return ThingOneToOneTargetQuerySet.get(this.pk(), ...prefetchKeys)
+    }
+
+    public async update(data: Partial<ThingOneToOneTargetFields>): Promise<ServerPayload<ThingOneToOneTarget>> {
+        let [responseData, statusCode, err] = await serverClient.post(`thing-one-to-one-target/${this.pk()}/update/`, data);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [new ThingOneToOneTarget(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err];
+    }
+
+    public async delete() {
+        return await serverClient.delete(`thing-one-to-one-target/${this.pk()}/delete/`);
+    }
+
+
+
+
+
 
 
 
@@ -354,7 +595,6 @@ export interface ThingChildQuerySetLookups {
     number__regex?: number
     number__iregex?: number
     parent?: ThingQuerySetLookups
-    children?: ThingChildChildQuerySetLookups
 }
 
 export class ThingChildQuerySet {
@@ -363,7 +603,6 @@ export class ThingChildQuerySet {
     protected excludedLookups: ThingChildQuerySetLookups;
     protected _or: ThingChildQuerySet[] = [];
     protected _prefetch: ThingChildPrefetchKey[];
-
 
     constructor(lookups: ThingChildQuerySetLookups = {}, excludedLookups: ThingChildQuerySetLookups = {}) {
         this.lookups = lookups;
@@ -409,6 +648,19 @@ export class ThingChildQuerySet {
         let [responseData, statusCode, err] = await serverClient.get(`thing-child/${primaryKey}/get/`, urlQuery);
         if (statusCode === 200) {
             return [new ThingChild(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async getOrCreate(lookup: Partial<ThingChildFields>, defaults: Partial<ThingChildFields> = {}): Promise<ServerPayload<[ThingChild, boolean]>> {
+        const data = { lookup, defaults };
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child/get-or-create/`, data);
+
+        if (statusCode === 201) {
+            return [[new ThingChild(responseData), true], responseData, statusCode, err]
+        }
+        if (statusCode === 200) {
+            return [[new ThingChild(responseData), false], responseData, statusCode, err]
         }
         return [undefined, responseData, statusCode, err]
     }
@@ -513,6 +765,10 @@ export class ThingChild implements ThingChildFields {
         return this.id
     }
 
+    public async refresh(...prefetchKeys: ThingChildPrefetchKey[]) {
+        return ThingChildQuerySet.get(this.pk(), ...prefetchKeys)
+    }
+
     public async update(data: Partial<ThingChildFields>): Promise<ServerPayload<ThingChild>> {
         let [responseData, statusCode, err] = await serverClient.post(`thing-child/${this.pk()}/update/`, data);
         if (statusCode in SuccessfulHttpStatusCodes) {
@@ -526,7 +782,7 @@ export class ThingChild implements ThingChildFields {
     }
 
     public children(lookups: ThingChildChildQuerySetLookups = {}) {
-        return new ThingChildChildQuerySet({ ...lookups, ...{ parent__id: this.pk() } })
+        return new ThingChildChildQuerySet({ ...lookups, ...{ parent: { id: this.pk() } } })
     }
 
 
@@ -612,7 +868,6 @@ export class ThingChildChildQuerySet {
     protected _or: ThingChildChildQuerySet[] = [];
     protected _prefetch: ThingChildChildPrefetchKey[];
 
-
     constructor(lookups: ThingChildChildQuerySetLookups = {}, excludedLookups: ThingChildChildQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
@@ -657,6 +912,19 @@ export class ThingChildChildQuerySet {
         let [responseData, statusCode, err] = await serverClient.get(`thing-child-child/${primaryKey}/get/`, urlQuery);
         if (statusCode === 200) {
             return [new ThingChildChild(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async getOrCreate(lookup: Partial<ThingChildChildFields>, defaults: Partial<ThingChildChildFields> = {}): Promise<ServerPayload<[ThingChildChild, boolean]>> {
+        const data = { lookup, defaults };
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child-child/get-or-create/`, data);
+
+        if (statusCode === 201) {
+            return [[new ThingChildChild(responseData), true], responseData, statusCode, err]
+        }
+        if (statusCode === 200) {
+            return [[new ThingChildChild(responseData), false], responseData, statusCode, err]
         }
         return [undefined, responseData, statusCode, err]
     }
@@ -759,6 +1027,10 @@ export class ThingChildChild implements ThingChildChildFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public async refresh(...prefetchKeys: ThingChildChildPrefetchKey[]) {
+        return ThingChildChildQuerySet.get(this.pk(), ...prefetchKeys)
     }
 
     public async update(data: Partial<ThingChildChildFields>): Promise<ServerPayload<ThingChildChild>> {
