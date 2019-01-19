@@ -77,6 +77,8 @@ let [questionPoll] = pollQuestion.poll
 // Prefetch the associated Question instance, and its associated Poll instance.
 const [questionComment] = QuestionComment.objects.get(10, {question: 'poll'})
 
+const [pollQuestionComments] = QuestionComment.objects.filter({question: {poll: {id: somePoll.pk()}})
+
 ```
 
 
