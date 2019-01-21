@@ -30,6 +30,9 @@ class FieldTypeTranspiler(object):
         serializers.JSONField: lambda x: typescript_types.OBJECT,
         serializers.ListField: lambda x: FieldTypeTranspiler.transpile(x.child),
         serializers.PrimaryKeyRelatedField: lambda x: FieldTypeTranspiler.transpile(x.queryset.model),
+        # Date(Time) serializer values are sent as strings.
+        serializers.DateTimeField: lambda x: typescript_types.STRING,
+        serializers.DateField: lambda x: typescript_types.STRING,
         # Django model field types
         JSONField: lambda x: typescript_types.OBJECT,
         models.CharField: lambda x: typescript_types.STRING,
@@ -49,8 +52,8 @@ class FieldTypeTranspiler(object):
         models.BigAutoField: lambda x: typescript_types.NUMBER,
         models.BooleanField: lambda x: typescript_types.BOOLEAN,
         models.NullBooleanField: lambda x: f"{typescript_types.BOOLEAN} | {typescript_types.NULL}",
-        models.DateTimeField: lambda x: typescript_types.DATE,
-        models.DateField: lambda x: typescript_types.DATE,
+        models.DateTimeField: lambda x: typescript_types.STRING,
+        models.DateField: lambda x: typescript_types.STRING,
         models.ForeignKey: lambda x: x.related_model.__name__,
         models.OneToOneField: lambda x: x.related_model.__name__,
         models.ManyToManyField: lambda x: x.related_model.__name__,

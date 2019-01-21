@@ -1,4 +1,5 @@
 import {ModelClass} from "./types";
+import preventExtensions = Reflect.preventExtensions;
 
 
 // -------------------------
@@ -89,6 +90,36 @@ export const foreignKeyField = (RelatedModel: () => any) =>
                 if (typeof val ==='object'){
                     cachedValue = new _RelatedModel(val);
                 }
+            }
+
+        }
+    });
+
+  };
+
+
+// -------------------------
+// Date Time Field
+//
+// -------------------------
+
+
+export const dateTimeField = () =>
+
+  function(target: any, propertyKey: string) {
+
+    let val;
+
+    Object.defineProperty(target, propertyKey, {
+
+        get: function() {
+           return val;
+         },
+        set: function (value: string | Date) {
+            if (value instanceof Date){
+                val = value.toISOString()
+            } else {
+                val = value
             }
 
         }

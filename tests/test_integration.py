@@ -8,7 +8,7 @@ from django_typescript.test import IntegrationTestCase
 from django_typescript import interface
 from django_typescript.transpile import Transpiler
 
-from .models import ThingSerializer, Thing, ThingChildSerializer, ThingChild, ThingChildChild, ThingOneToOneTarget
+from .models import Thing, ThingChild, ThingChildChild, ThingOneToOneTarget, TimestampedModel
 
 
 # =================================
@@ -69,6 +69,7 @@ class Interface(interface.Interface, transpile_dest=TS_TRANSPILE_DEST):
     thing_siblings = interface.ModelType(model_cls=ThingOneToOneTarget)
     child_things = interface.ModelType(model_cls=ThingChild)
     child_child_things = interface.ModelType(model_cls=ThingChildChild)
+    timestamped_models = interface.ModelType(model_cls=TimestampedModel)
     object_types = GenericObjectType
 
 
@@ -180,6 +181,22 @@ class TestIntegration(IntegrationTestCase):
     @override_settings(ROOT_URLCONF=__name__)
     def test_thing_static_method(self):
         self._run_ts_test(test_name='thing_static_method')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_create_timestamp(self):
+        self._run_ts_test(test_name='create_timestamp')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_filter_dt(self):
+        self._run_ts_test(test_name='filter_dt')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_filter_dt_range(self):
+        self._run_ts_test(test_name='filter_dt_range')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_filter_is_null(self):
+        self._run_ts_test(test_name='filter_is_null')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_object_method(self):

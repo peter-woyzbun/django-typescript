@@ -1,7 +1,7 @@
 import test from 'ava';
 
 import {serverClient} from "./server/client";
-import {Thing, ThingChild, ThingChildChild, ThingOneToOneTarget} from './server/models'
+import {Thing, ThingChild, ThingChildChild, ThingOneToOneTarget, TimestampedModel} from './server/models'
 import {GenericObjectType} from "./server/objects";
 
 
@@ -183,6 +183,35 @@ test('thing_static_method', async t => {
     const [result] = await Thing.thing_static_method({a: 'x', b: 'y'});
 	t.is(result['a'], 'x');
 	t.is(result['b'], 'y');
+});
+
+test('create_timestamp', async t => {
+    const [timestampModel, responseData, statusCode] = await TimestampedModel.objects.create({timestamp: '2019-01-01T00:00:00'});
+	t.is(timestampModel.timestamp, '2019-01-01T00:00:00');
+});
+
+test('filter_dt', async t => {
+    await TimestampedModel.objects.create({timestamp: '2019-01-01T00:00:00', name: 'a'});
+    await TimestampedModel.objects.create({timestamp: '2019-01-02T00:00:00', name: 'b'});
+    await TimestampedModel.objects.create({timestamp: '2019-01-03T00:00:00', name: 'c'});
+	const [results] = await TimestampedModel.objects.filter({timestamp__gt: '2019-01-01T00:00:00'}).retrieve();
+    t.is(results.length, 2);
+});
+
+test('filter_dt_range', async t => {
+    await TimestampedModel.objects.create({timestamp: '2019-01-01T00:00:00', name: 'a'});
+    await TimestampedModel.objects.create({timestamp: '2019-01-02T00:00:00', name: 'b'});
+    await TimestampedModel.objects.create({timestamp: '2019-01-03T00:00:00', name: 'c'});
+	const [results] = await TimestampedModel.objects.filter({timestamp__range: ['2019-01-01T00:00:00', '2019-01-02T00:00:00']}).retrieve();
+    t.is(results.length, 2);
+});
+
+test('filter_is_null', async t => {
+    await TimestampedModel.objects.create({timestamp: '2019-01-01T00:00:00', name: 'a'});
+    await TimestampedModel.objects.create({timestamp: '2019-01-02T00:00:00'});
+    await TimestampedModel.objects.create({timestamp: '2019-01-03T00:00:00', name: 'c'});
+	const [results] = await TimestampedModel.objects.filter({name__isnull: true}).retrieve();
+    t.is(results[0].timestamp, '2019-01-02T00:00:00');
 });
 
 

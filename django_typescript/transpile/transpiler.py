@@ -45,6 +45,8 @@ class Transpiler(object):
         copy_file(str(templates.CLIENT_TEMPLATE_FILE),
                   os.path.join(self.destination_dir, templates.CLIENT_TEMPLATE_FILENAME))
         index_ts = open(os.path.join(self.destination_dir, 'index.ts'), "w+")
+        index_ts.write("""export * from './models'\nexport * from './client'
+        """)
         index_ts.close()
 
     def _try_ts_format(self, filename: str):

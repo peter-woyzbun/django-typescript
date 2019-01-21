@@ -3,13 +3,14 @@ import {
     PaginatedData,
     PrimaryKey,
     foreignKeyField,
+    dateTimeField,
     ModelFieldsSchema,
     SuccessfulHttpStatusCodes,
     ServerPayload,
     ServerDataPayload
 } from './core'
 
-export type FieldType = 'ForeignKey' | 'CharField' | 'OneToOneField' | 'AutoField' | 'IntegerField'
+export type FieldType = 'AutoField' | 'IntegerField' | 'ForeignKey' | 'CharField' | 'OneToOneField' | 'DateTimeField'
 
 
 
@@ -1043,6 +1044,273 @@ export class ThingChildChild implements ThingChildChildFields {
 
     public async delete() {
         return await serverClient.delete(`thing-child-child/${this.pk()}/delete/`);
+    }
+
+
+
+
+
+
+
+
+}
+
+// -------------------------
+// TimestampedModelQuerySet
+//
+// -------------------------
+
+
+export type TimestampedModelPrefetchKey = never
+
+
+
+export interface TimestampedModelQuerySetLookups {
+    id?: number
+    id__exact?: number
+    id__iexact?: number
+    id__gt?: number
+    id__gte?: number
+    id__lt?: number
+    id__lte?: number
+    id__in?: number[]
+    id__contains?: number
+    id__icontains?: number
+    id__startswith?: number
+    id__istartswith?: number
+    id__endswith?: number
+    id__iendswith?: number
+    id__range?: [number, number]
+    id__isnull?: boolean
+    id__regex?: number
+    id__iregex?: number
+    name?: string
+    name__exact?: string
+    name__iexact?: string
+    name__gt?: string
+    name__gte?: string
+    name__lt?: string
+    name__lte?: string
+    name__in?: string[]
+    name__contains?: string
+    name__icontains?: string
+    name__startswith?: string
+    name__istartswith?: string
+    name__endswith?: string
+    name__iendswith?: string
+    name__range?: [string, string]
+    name__isnull?: boolean
+    name__regex?: string
+    name__iregex?: string
+    timestamp?: string
+    timestamp__exact?: string
+    timestamp__iexact?: string
+    timestamp__gt?: string
+    timestamp__gte?: string
+    timestamp__lt?: string
+    timestamp__lte?: string
+    timestamp__in?: string[]
+    timestamp__contains?: string
+    timestamp__icontains?: string
+    timestamp__startswith?: string
+    timestamp__istartswith?: string
+    timestamp__endswith?: string
+    timestamp__iendswith?: string
+    timestamp__range?: [string, string]
+    timestamp__isnull?: boolean
+    timestamp__regex?: string
+    timestamp__iregex?: string
+    timestamp__year?: string
+    timestamp__month?: string
+    timestamp__day?: string
+    timestamp__week_day?: string
+    timestamp__week?: string
+    timestamp__quarter?: string
+    timestamp__hour?: string
+    timestamp__minute?: string
+    timestamp__second?: string
+    timestamp__date?: string
+    timestamp__time?: string
+}
+
+export class TimestampedModelQuerySet {
+
+    protected lookups: TimestampedModelQuerySetLookups;
+    protected excludedLookups: TimestampedModelQuerySetLookups;
+    protected _or: TimestampedModelQuerySet[] = [];
+    protected _prefetch: TimestampedModelPrefetchKey[];
+
+    constructor(lookups: TimestampedModelQuerySetLookups = {}, excludedLookups: TimestampedModelQuerySetLookups = {}) {
+        this.lookups = lookups;
+        this.excludedLookups = excludedLookups;
+    }
+
+    public prefetch(...prefetchKeys: TimestampedModelPrefetchKey[]): this {
+        const existingPrefetch: TimestampedModelPrefetchKey[] = this._prefetch ? (this._prefetch) : ([] as TimestampedModelPrefetchKey[]);
+        this._prefetch = [...existingPrefetch, ...prefetchKeys];
+        return this
+    }
+
+    public static all(): TimestampedModelQuerySet {
+        return new TimestampedModelQuerySet()
+    }
+
+    public static filter(lookups: Partial<TimestampedModelQuerySetLookups>): TimestampedModelQuerySet {
+        return new TimestampedModelQuerySet(lookups)
+    }
+
+    public filter(lookups: Partial<TimestampedModelQuerySetLookups>): TimestampedModelQuerySet {
+        return new TimestampedModelQuerySet({ ...this.lookups, ...lookups }, this.excludedLookups)
+    }
+
+    public static exclude(lookups: Partial<TimestampedModelQuerySetLookups>): TimestampedModelQuerySet {
+        return new TimestampedModelQuerySet({}, lookups)
+    }
+
+    public exclude(lookups: Partial<TimestampedModelQuerySetLookups>): TimestampedModelQuerySet {
+        return new TimestampedModelQuerySet({}, { ...this.excludedLookups, ...lookups })
+    }
+
+    public or(queryset: TimestampedModelQuerySet): this {
+        this._or.push(queryset);
+        return this
+    }
+
+    public static async get(primaryKey: number, ...prefetchKeys: TimestampedModelPrefetchKey[]): Promise<ServerPayload<TimestampedModel>> {
+        let urlQuery = '';
+        if (prefetchKeys) {
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model/${primaryKey}/get/`, urlQuery);
+        if (statusCode === 200) {
+            return [new TimestampedModel(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async getOrCreate(lookup: Partial<TimestampedModelFields>, defaults: Partial<TimestampedModelFields> = {}): Promise<ServerPayload<[TimestampedModel, boolean]>> {
+        const data = { lookup, defaults };
+        let [responseData, statusCode, err] = await serverClient.post(`timestamped-model/get-or-create/`, data);
+
+        if (statusCode === 201) {
+            return [[new TimestampedModel(responseData), true], responseData, statusCode, err]
+        }
+        if (statusCode === 200) {
+            return [[new TimestampedModel(responseData), false], responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public static async create(data: Partial<TimestampedModelFields>): Promise<ServerPayload<TimestampedModel>> {
+        let [responseData, statusCode, err] = await serverClient.post(`timestamped-model/create/`, data);
+
+        if (statusCode === 201) {
+            return [new TimestampedModel(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public serialize(): object {
+        return {
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
+            or_: this._or.map((queryset) => queryset.serialize())
+        }
+    }
+
+    public async values(...fields: Array<[keyof TimestampedModelFields]>): Promise<ServerDataPayload<object[]>> {
+        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
+        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        return [responseData, statusCode, err]
+
+    }
+
+    public async pageValues(pageNum: number = 1, pageSize: number = 25,
+        ...fields: Array<[keyof TimestampedModelFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
+        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        return [responseData, statusCode, err]
+    }
+
+    public async retrieve(): Promise<ServerPayload<TimestampedModel[]>> {
+        let urlQuery = "query=" + JSON.stringify(this.serialize());
+        if (this._prefetch) {
+            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
+        }
+        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData.map((data) => new TimestampedModel(data)), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<TimestampedModel>>> {
+        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
+        if (this._prefetch) {
+            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
+        }
+        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [{
+                ...responseData,
+                data: responseData.data.map((data) => new TimestampedModel(data))
+            }, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+}
+
+
+// -------------------------
+// TimestampedModel
+//
+// -------------------------
+
+
+export interface TimestampedModelFields {
+    readonly id: number
+    name?: string
+    timestamp?: string
+}
+
+
+export class TimestampedModel implements TimestampedModelFields {
+
+    readonly id: number
+    name?: string
+    timestamp?: string
+
+    public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
+        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
+        timestamp: { fieldName: 'timestamp', fieldType: 'DateTimeField', nullable: true, isReadOnly: false }
+    }
+
+    constructor(data: TimestampedModelFields) {
+        Object.assign(this, data);
+    }
+
+    static objects = TimestampedModelQuerySet;
+
+    public pk(): number {
+        return this.id
+    }
+
+    public async refresh(...prefetchKeys: TimestampedModelPrefetchKey[]) {
+        return TimestampedModelQuerySet.get(this.pk(), ...prefetchKeys)
+    }
+
+    public async update(data: Partial<TimestampedModelFields>): Promise<ServerPayload<TimestampedModel>> {
+        let [responseData, statusCode, err] = await serverClient.post(`timestamped-model/${this.pk()}/update/`, data);
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [new TimestampedModel(responseData), responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err];
+    }
+
+    public async delete() {
+        return await serverClient.delete(`timestamped-model/${this.pk()}/delete/`);
     }
 
 

@@ -8,6 +8,7 @@ from django_typescript.core import types
 QUERYSET_SUFFIX = 'QuerySet'
 QUERYSET_LOOKUPS_SUFFIX = QUERYSET_SUFFIX + 'Lookups'
 FOREIGN_KEY_DECORATOR_NAME = 'foreignKeyField'
+DATETIME_FIELD_DECORATOR_NAME = 'dateTimeField'
 TYPESCRIPT_THIS_PK_REF = '${this.pk()}'
 TYPESCRIPT_ARG_PK_REF = '${primaryKey}'
 FIELDS_INTERFACE_SUFFIX = 'Fields'
@@ -42,4 +43,8 @@ def forward_relation_getter_setter(related_model: types.ModelClass, field_name: 
     """
     rel_model_name = related_model.__name__
     return f"@{FOREIGN_KEY_DECORATOR_NAME}(() => {rel_model_name}) {field_name}?: {rel_model_name}"
+
+
+def datetime_getter_setter(field_name):
+    return f"@{DATETIME_FIELD_DECORATOR_NAME}() {field_name}?: Date"
 

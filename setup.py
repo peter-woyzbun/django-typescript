@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='django-typescript',
-      version='0.1',
+      version='0.2',
       description='rests',
       author='Peter Woyzbun',
       author_email='peter.woyzbun@gmail.com',
@@ -10,7 +10,6 @@ setup(name='django-typescript',
       install_requires=['django>=2.1',
                         'djangorestframework',
                         'jinja2',
-                        'mypy_extensions',
                         'pyparsing'
                         ],
       zip_safe=False)

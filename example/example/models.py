@@ -2,6 +2,10 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+# =================================
+# Poll
+# ---------------------------------
+
 class Poll(models.Model):
     POLL_STATE_CHOICES = (
         ('OPEN', 'Open'),
@@ -15,11 +19,19 @@ class Poll(models.Model):
     state = models.CharField(max_length=20, choices=POLL_STATE_CHOICES)
 
 
+# =================================
+# Question
+# ---------------------------------
+
 class Question(models.Model):
     poll = models.ForeignKey(Poll, related_name='questions', on_delete=models.CASCADE)
     question_text = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published')
 
+
+# =================================
+# Question Comment
+# ---------------------------------
 
 class QuestionComment(models.Model):
     question = models.ForeignKey(Question, related_name='comments', on_delete=models.CASCADE)
@@ -27,7 +39,12 @@ class QuestionComment(models.Model):
     user = models.ForeignKey(User, related_name='question_comments', on_delete=models.CASCADE)
 
 
+# =================================
+# Choice
+# ---------------------------------
+
 class Choice(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='choices')
     choice_text = models.CharField(max_length=200)
     votes = models.IntegerField(default=0)
+

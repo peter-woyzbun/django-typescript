@@ -1,8 +1,11 @@
 from typing import List
 
+from django.db import models
+
 from django_typescript.core import types
 from django_typescript.transpile.field_type import FieldTypeTranspiler
 from django_typescript.transpile.common import render_type_declaration
+from django_typescript.transpile.model_type.common import datetime_getter_setter
 from django_typescript.transpile.literal import LiteralTranspiler
 
 

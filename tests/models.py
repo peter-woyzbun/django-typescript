@@ -1,5 +1,4 @@
 from django.db import models
-from rest_framework import serializers
 
 
 # =================================
@@ -53,25 +52,6 @@ class GenericModel(TestModel):
     name = models.CharField(null=True, max_length=200)
 
 
-# =================================
-# Serializers
-# ---------------------------------
-
-
-class ThingSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Thing
-        fields = '__all__'
-
-
-class ThingChildSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ThingChild
-        fields = '__all__'
-
-
-class GenericModelSeriaizer(serializers.ModelSerializer):
-    class Meta:
-        model = GenericModel
-        fields = '__all__'
+class TimestampedModel(TestModel):
+    name = models.CharField(null=True, max_length=200)
+    timestamp = models.DateTimeField(null=True)

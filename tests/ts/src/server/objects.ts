@@ -38,7 +38,7 @@ export class GenericObjectType implements GenericObjectTypeFields {
         return await serverClient.post(`generic-object-type/object-method/`, postData);
     }
 
-    public async object_method_w_arg_serializers(data: { a_datetime: any }) {
+    public async object_method_w_arg_serializers(data: { a_datetime: string }) {
 
 
         const postData = {

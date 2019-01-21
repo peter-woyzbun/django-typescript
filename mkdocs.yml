@@ -9,9 +9,11 @@ markdown_extensions:
  - toc:
     anchorlink: True
 
+nav:
+    - Home: index.md
+    - Python: python.md
+
 pages:
  - Home: 'index.md'
- - Python:
-    - 'Interface': 'python/interface.md'
-    - 'Model Types': 'python/model-types.md'
-    - 'Object Types': 'python/object-types.md'
+ - Python: 'python.md'
+ - TypeScript: 'typescript.md'

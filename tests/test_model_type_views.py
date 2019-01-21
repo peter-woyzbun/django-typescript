@@ -7,7 +7,7 @@ from rest_framework import status
 
 from django_typescript import interface
 
-from .models import ThingSerializer, Thing, ThingChildSerializer, ThingChild
+from .models import Thing, ThingChild
 
 
 # =================================

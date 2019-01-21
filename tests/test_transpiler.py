@@ -10,7 +10,7 @@ from django.test import TestCase, override_settings
 from django_typescript import interface
 from django_typescript.transpile import Transpiler
 
-from .models import ThingSerializer, Thing, ThingChildSerializer, ThingChild
+from .models import Thing
 
 
 # =================================
