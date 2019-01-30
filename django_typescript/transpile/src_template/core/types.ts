@@ -2,6 +2,14 @@ import fetch, {FetchError} from 'node-fetch';
 
 
 // -------------------------
+// Utility Types
+//
+// -------------------------
+
+export type valueof<T> = T[keyof T]
+
+
+// -------------------------
 // Server Types
 //
 // -------------------------
@@ -105,7 +113,7 @@ export type ResponseData = any | undefined;
 export type ServerResponse = [ResponseData, ResponseStatusCode, ResponseError]
 
 // A `ServerResponse` type, but with a generic type prepended.
-export type ServerPayload<PayloadType> = [PayloadType | undefined, ResponseData, ResponseStatusCode, ResponseError]
+export type ServerPayload<P> = [P | undefined, ResponseData, ResponseStatusCode, ResponseError]
 
 // A `ServerResponse` type, but with the ResponseData type generic.
 export type ServerDataPayload<PayloadType> = [PayloadType | undefined, ResponseStatusCode, ResponseError]
@@ -135,6 +143,21 @@ export interface FieldSchema<FieldTypes>{
 export interface ModelFieldsSchema<FieldTypes>{
     [key: string]: FieldSchema<FieldTypes>
 }
+
+
+// -------------------------
+// Queryset Types
+//
+// -------------------------
+
+
+export type ModelFieldOrdering<Fields> = keyof Fields | ['-', keyof Fields]
+
+export type QuerysetValues<ModelFields> = Array<Partial<ModelFields>>
+
+export type QuerysetValuesList<ModelFields> = Array<Array<valueof<Partial<ModelFields>>>>
+
+export type QuerysetModelList<Model> = Model[]
 
 
 // -------------------------

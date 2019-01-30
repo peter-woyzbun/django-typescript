@@ -10,38 +10,22 @@ from django_typescript.core.utils.signature import Signature
 
 class ModelTypeValidator(object):
 
-    def __init__(self, validate_func: Callable, forward_rel_model_fields: Dict[str, types.ModelField]):
+    def __init__(self, validate_func: Callable):
         self.validate_func = validate_func
         self.func_sig = Signature(callable_=validate_func)
-        self.forward_rel_model_fields = forward_rel_model_fields
 
     @property
     def validator_field_names(self):
         return self.func_sig.param_names
 
-    def _resolve_forward_relations(self, field_values: dict):
-        resolved_field_values = {}
-        print(self.forward_rel_model_fields)
-        # for resolved_key, model_field in self.forward_rel_model_fields.items():
-        #     if model_field.get_attname() in field_values:
-        #         if model_field.name in self.func_sig:
-        #             pk_value = field_values.get(model_field.get_attname())
-        #             if pk_value is not None:
-        #                 resolved_field_values[resolved_key] = model_field.related_model.objects.get(pk=pk_value)
-        #             resolved_field_values.pop(model_field.get_attname())
-        #
+    def _prep_field_values(self, field_values: dict):
+        for name in self.validator_field_names:
+            if name not in field_values:
+                field_values[name] = None
 
-        for field_name, value in field_values.items():
-
-            if field_name in self.forward_rel_model_fields:
-                model_field = self.forward_rel_model_fields[field_name]
-                pk_value = field_values[model_field.get_attname()]
-                resolved_field_values[model_field.name] = model_field.related_model.objects.get(pk=pk_value)
-            else:
-                if field_name in self.validator_field_names:
-                    resolved_field_values[field_name] = value
-        return resolved_field_values
+        return {k: v for k, v in field_values.items() if k in self.validator_field_names}
 
     def validate(self, **field_values):
-        resolved_field_values = self._resolve_forward_relations(field_values)
-        return self.validate_func(**resolved_field_values)
+        prepped_values = self._prep_field_values(field_values=field_values)
+        return self.validate_func(**prepped_values)
+

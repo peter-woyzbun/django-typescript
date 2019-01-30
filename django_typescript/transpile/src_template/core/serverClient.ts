@@ -54,7 +54,7 @@ export class ServerClient {
      * Send a GET request to given url.
      *
      */
-    public async get(url: string, urlQuery?){
+    public async get(url: string, urlQuery?): Promise<ServerResponse>{
         return this.request(this._buildUrl(url, urlQuery), this._requestOptions(RequestMethod.GET));
 
     }

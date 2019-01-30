@@ -103,6 +103,53 @@ test('exclude', async t => {
     t.is(retrievedThings[0].name, 'test_thing_2');
 });
 
+test('order_by', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing', number: 1});
+    const [createdThing2] = await Thing.objects.create({name: 'test_thing_2', number: 2});
+    const [retrievedThings] = await Thing.objects.all().order_by('number').retrieve();
+    t.is(retrievedThings[0].name, 'test_thing');
+    t.is(retrievedThings[1].name, 'test_thing_2');
+});
+
+test('order_by_descending', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing', number: 1});
+    const [createdThing2] = await Thing.objects.create({name: 'test_thing_2', number: 2});
+    const [retrievedThings] = await Thing.objects.all().order_by(['-', 'number']).retrieve();
+    t.is(retrievedThings[0].name, 'test_thing_2');
+    t.is(retrievedThings[1].name, 'test_thing');
+});
+
+test('exists', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [exists] = await Thing.objects.filter({name: 'test_thing'}).exists();
+	t.is(exists, true);
+});
+
+test('exists_negative', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [exists] = await Thing.objects.filter({name: 'dork'}).exists();
+	t.is(exists, false);
+});
+
+test('values', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing', number: 1});
+    const [createdThing2] = await Thing.objects.create({name: 'test_thing_2', number: 2});
+    const [retrievedValues] = await Thing.objects.all().values('name');
+    t.is(Object.keys(retrievedValues[0]).length, 1);
+    t.is(Object.keys(retrievedValues[0])[0], 'name');
+});
+
+test('distinct_values', async t => {
+    const [createdThing] = await Thing.objects.create({name: 'test_thing', number: 1});
+    const [createdThing2] = await Thing.objects.create({name: 'test_thing', number: 2});
+    const [retrievedValues] = await Thing.objects.all().distinct('name').values('name');
+    t.is(retrievedValues.length, 1);
+    t.is(Object.keys(retrievedValues[0]).length, 1);
+    t.is(Object.keys(retrievedValues[0])[0], 'name');
+});
+
+
+
 test('get_reverse_related', async t => {
     const [createdThing] = await Thing.objects.create({name: 'test_thing'});
     const [childThing] = await ThingChild.objects.create({parent_id: createdThing.pk()});
@@ -212,6 +259,12 @@ test('filter_is_null', async t => {
     await TimestampedModel.objects.create({timestamp: '2019-01-03T00:00:00', name: 'c'});
 	const [results] = await TimestampedModel.objects.filter({name__isnull: true}).retrieve();
     t.is(results[0].timestamp, '2019-01-02T00:00:00');
+});
+
+test('detail_link', async t => {
+   const [createdThing, responseData, statusCode, err] = await Thing.objects.create({name: 'test_thing'});
+   Thing.setDetailLink((pk) => `thing/${pk}/`);
+    t.is(createdThing.detailLink(), `thing/${createdThing.pk()}/`);
 });
 
 

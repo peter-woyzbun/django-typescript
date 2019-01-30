@@ -7,10 +7,15 @@ import {
     ModelFieldsSchema,
     SuccessfulHttpStatusCodes,
     ServerPayload,
-    ServerDataPayload
+    ServerDataPayload,
+    QuerysetValues,
+    QuerysetValuesList,
+    QuerysetModelList,
+    ModelFieldOrdering,
+    ServerResponse
 } from './core'
 
-export type FieldType = 'AutoField' | 'IntegerField' | 'ForeignKey' | 'CharField' | 'OneToOneField' | 'DateTimeField'
+export type FieldType = 'OneToOneField' | 'DateTimeField' | 'ForeignKey' | 'CharField' | 'IntegerField' | 'AutoField'
 
 
 
@@ -118,10 +123,22 @@ export class ThingQuerySet {
     protected excludedLookups: ThingQuerySetLookups;
     protected _or: ThingQuerySet[] = [];
     protected _prefetch: ThingPrefetchKey[];
+    protected _orderBy?: string[];
+    protected _distinct?: Array<keyof ThingFields>;
+    protected _valuesFields?: Array<keyof ThingFields>;
+    protected _exists?: boolean;
 
     constructor(lookups: ThingQuerySetLookups = {}, excludedLookups: ThingQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public serializeQuery(): object {
+        return {
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
+            or_: this._or.map((queryset) => queryset.serializeQuery())
+        }
     }
 
     public prefetch(...prefetchKeys: ThingPrefetchKey[]): this {
@@ -189,34 +206,29 @@ export class ThingQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public serialize(): object {
-        return {
-            filters: flattenLookups(this.lookups),
-            exclude: flattenLookups(this.excludedLookups),
-            or_: this._or.map((queryset) => queryset.serialize())
-        }
+    public async values(...fields: Array<keyof ThingFields>): Promise<ServerDataPayload<QuerysetValuesList<ThingFields>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async values(...fields: Array<[keyof ThingFields]>): Promise<ServerDataPayload<object[]>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        let [responseData, statusCode, err] = await serverClient.get(`thing//`, urlQuery);
-        return [responseData, statusCode, err]
-
+    public async pageValues(pageNum: number = 1, pageSize: number = 25, ...fields: Array<keyof ThingFields>): Promise<ServerDataPayload<PaginatedData<QuerysetValuesList<ThingFields>>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async pageValues(pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let [responseData, statusCode, err] = await serverClient.get(`thing//`, urlQuery);
-        return [responseData, statusCode, err]
+    public order_by(...fields: ModelFieldOrdering<ThingFields>[]): this {
+        this._orderBy = fields.map((fieldOrdering) => typeof fieldOrdering === 'string' ? (fieldOrdering) : (fieldOrdering.join('')));
+        return this
+    }
+
+    public distinct(...fields: Array<keyof ThingFields>): this {
+        this._distinct = fields;
+        return this
     }
 
     public async retrieve(): Promise<ServerPayload<Thing[]>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize());
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve();
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [responseData.map((data) => new Thing(data)), responseData, statusCode, err]
         }
@@ -224,11 +236,8 @@ export class ThingQuerySet {
     }
 
     public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<Thing>>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve(pageNum, pageSize);
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [{
                 ...responseData,
@@ -238,7 +247,30 @@ export class ThingQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async exists(): Promise<ServerPayload<boolean>> {
+        this._exists = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
+        let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
+        if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
+        if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
+        if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
+        if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
+        if (pageNum) { urlQuery += "&page=" + pageNum }
+        if (pageSize) { urlQuery += "&pageSize=" + pageSize }
+        let [responseData, statusCode, err] = await serverClient.get(`thing//`, urlQuery);
+        return [responseData, statusCode, err]
+    }
+
 }
+
 
 
 // -------------------------
@@ -260,6 +292,7 @@ export class Thing implements ThingFields {
     name?: string
     number?: number
     @foreignKeyField(() => ThingOneToOneTarget) one_to_one_target?: ThingOneToOneTarget
+    private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
@@ -275,6 +308,17 @@ export class Thing implements ThingFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public static setDetailLink(makeDetailLink: (pk: number) => string) {
+        Thing._makeDetailLink = makeDetailLink;
+    }
+
+    public detailLink(): string | undefined {
+        if (Thing._makeDetailLink) {
+            return Thing._makeDetailLink(this.pk())
+        }
+        return undefined
     }
 
     public async refresh(...prefetchKeys: ThingPrefetchKey[]) {
@@ -340,6 +384,7 @@ export interface ThingOneToOneTargetQuerySetLookups {
     id__isnull?: boolean
     id__regex?: number
     id__iregex?: number
+    sibling_thing_id?: number
     sibling_thing?: ThingQuerySetLookups
 }
 
@@ -349,10 +394,22 @@ export class ThingOneToOneTargetQuerySet {
     protected excludedLookups: ThingOneToOneTargetQuerySetLookups;
     protected _or: ThingOneToOneTargetQuerySet[] = [];
     protected _prefetch: ThingOneToOneTargetPrefetchKey[];
+    protected _orderBy?: string[];
+    protected _distinct?: Array<keyof ThingOneToOneTargetFields>;
+    protected _valuesFields?: Array<keyof ThingOneToOneTargetFields>;
+    protected _exists?: boolean;
 
     constructor(lookups: ThingOneToOneTargetQuerySetLookups = {}, excludedLookups: ThingOneToOneTargetQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public serializeQuery(): object {
+        return {
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
+            or_: this._or.map((queryset) => queryset.serializeQuery())
+        }
     }
 
     public prefetch(...prefetchKeys: ThingOneToOneTargetPrefetchKey[]): this {
@@ -420,34 +477,29 @@ export class ThingOneToOneTargetQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public serialize(): object {
-        return {
-            filters: flattenLookups(this.lookups),
-            exclude: flattenLookups(this.excludedLookups),
-            or_: this._or.map((queryset) => queryset.serialize())
-        }
+    public async values(...fields: Array<keyof ThingOneToOneTargetFields>): Promise<ServerDataPayload<QuerysetValuesList<ThingOneToOneTargetFields>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async values(...fields: Array<[keyof ThingOneToOneTargetFields]>): Promise<ServerDataPayload<object[]>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
-        return [responseData, statusCode, err]
-
+    public async pageValues(pageNum: number = 1, pageSize: number = 25, ...fields: Array<keyof ThingOneToOneTargetFields>): Promise<ServerDataPayload<PaginatedData<QuerysetValuesList<ThingOneToOneTargetFields>>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async pageValues(pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingOneToOneTargetFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
-        return [responseData, statusCode, err]
+    public order_by(...fields: ModelFieldOrdering<ThingOneToOneTargetFields>[]): this {
+        this._orderBy = fields.map((fieldOrdering) => typeof fieldOrdering === 'string' ? (fieldOrdering) : (fieldOrdering.join('')));
+        return this
+    }
+
+    public distinct(...fields: Array<keyof ThingOneToOneTargetFields>): this {
+        this._distinct = fields;
+        return this
     }
 
     public async retrieve(): Promise<ServerPayload<ThingOneToOneTarget[]>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize());
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve();
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [responseData.map((data) => new ThingOneToOneTarget(data)), responseData, statusCode, err]
         }
@@ -455,11 +507,8 @@ export class ThingOneToOneTargetQuerySet {
     }
 
     public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<ThingOneToOneTarget>>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve(pageNum, pageSize);
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [{
                 ...responseData,
@@ -469,7 +518,30 @@ export class ThingOneToOneTargetQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async exists(): Promise<ServerPayload<boolean>> {
+        this._exists = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
+        let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
+        if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
+        if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
+        if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
+        if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
+        if (pageNum) { urlQuery += "&page=" + pageNum }
+        if (pageSize) { urlQuery += "&pageSize=" + pageSize }
+        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        return [responseData, statusCode, err]
+    }
+
 }
+
 
 
 // -------------------------
@@ -489,6 +561,7 @@ export class ThingOneToOneTarget implements ThingOneToOneTargetFields {
     readonly id: number
     sibling_thing_id: number
     @foreignKeyField(() => Thing) sibling_thing?: Thing
+    private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
@@ -503,6 +576,17 @@ export class ThingOneToOneTarget implements ThingOneToOneTargetFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public static setDetailLink(makeDetailLink: (pk: number) => string) {
+        ThingOneToOneTarget._makeDetailLink = makeDetailLink;
+    }
+
+    public detailLink(): string | undefined {
+        if (ThingOneToOneTarget._makeDetailLink) {
+            return ThingOneToOneTarget._makeDetailLink(this.pk())
+        }
+        return undefined
     }
 
     public async refresh(...prefetchKeys: ThingOneToOneTargetPrefetchKey[]) {
@@ -595,6 +679,7 @@ export interface ThingChildQuerySetLookups {
     number__isnull?: boolean
     number__regex?: number
     number__iregex?: number
+    parent_id?: number
     parent?: ThingQuerySetLookups
 }
 
@@ -604,10 +689,22 @@ export class ThingChildQuerySet {
     protected excludedLookups: ThingChildQuerySetLookups;
     protected _or: ThingChildQuerySet[] = [];
     protected _prefetch: ThingChildPrefetchKey[];
+    protected _orderBy?: string[];
+    protected _distinct?: Array<keyof ThingChildFields>;
+    protected _valuesFields?: Array<keyof ThingChildFields>;
+    protected _exists?: boolean;
 
     constructor(lookups: ThingChildQuerySetLookups = {}, excludedLookups: ThingChildQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public serializeQuery(): object {
+        return {
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
+            or_: this._or.map((queryset) => queryset.serializeQuery())
+        }
     }
 
     public prefetch(...prefetchKeys: ThingChildPrefetchKey[]): this {
@@ -675,34 +772,29 @@ export class ThingChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public serialize(): object {
-        return {
-            filters: flattenLookups(this.lookups),
-            exclude: flattenLookups(this.excludedLookups),
-            or_: this._or.map((queryset) => queryset.serialize())
-        }
+    public async values(...fields: Array<keyof ThingChildFields>): Promise<ServerDataPayload<QuerysetValuesList<ThingChildFields>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async values(...fields: Array<[keyof ThingChildFields]>): Promise<ServerDataPayload<object[]>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child//`, urlQuery);
-        return [responseData, statusCode, err]
-
+    public async pageValues(pageNum: number = 1, pageSize: number = 25, ...fields: Array<keyof ThingChildFields>): Promise<ServerDataPayload<PaginatedData<QuerysetValuesList<ThingChildFields>>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async pageValues(pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingChildFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child//`, urlQuery);
-        return [responseData, statusCode, err]
+    public order_by(...fields: ModelFieldOrdering<ThingChildFields>[]): this {
+        this._orderBy = fields.map((fieldOrdering) => typeof fieldOrdering === 'string' ? (fieldOrdering) : (fieldOrdering.join('')));
+        return this
+    }
+
+    public distinct(...fields: Array<keyof ThingChildFields>): this {
+        this._distinct = fields;
+        return this
     }
 
     public async retrieve(): Promise<ServerPayload<ThingChild[]>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize());
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve();
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [responseData.map((data) => new ThingChild(data)), responseData, statusCode, err]
         }
@@ -710,11 +802,8 @@ export class ThingChildQuerySet {
     }
 
     public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<ThingChild>>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve(pageNum, pageSize);
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [{
                 ...responseData,
@@ -724,7 +813,30 @@ export class ThingChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async exists(): Promise<ServerPayload<boolean>> {
+        this._exists = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
+        let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
+        if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
+        if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
+        if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
+        if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
+        if (pageNum) { urlQuery += "&page=" + pageNum }
+        if (pageSize) { urlQuery += "&pageSize=" + pageSize }
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child//`, urlQuery);
+        return [responseData, statusCode, err]
+    }
+
 }
+
 
 
 // -------------------------
@@ -748,6 +860,7 @@ export class ThingChild implements ThingChildFields {
     number?: number
     parent_id: number
     @foreignKeyField(() => Thing) parent?: Thing
+    private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
@@ -764,6 +877,17 @@ export class ThingChild implements ThingChildFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public static setDetailLink(makeDetailLink: (pk: number) => string) {
+        ThingChild._makeDetailLink = makeDetailLink;
+    }
+
+    public detailLink(): string | undefined {
+        if (ThingChild._makeDetailLink) {
+            return ThingChild._makeDetailLink(this.pk())
+        }
+        return undefined
     }
 
     public async refresh(...prefetchKeys: ThingChildPrefetchKey[]) {
@@ -859,6 +983,7 @@ export interface ThingChildChildQuerySetLookups {
     number__isnull?: boolean
     number__regex?: number
     number__iregex?: number
+    parent_id?: number
     parent?: ThingChildQuerySetLookups
 }
 
@@ -868,10 +993,22 @@ export class ThingChildChildQuerySet {
     protected excludedLookups: ThingChildChildQuerySetLookups;
     protected _or: ThingChildChildQuerySet[] = [];
     protected _prefetch: ThingChildChildPrefetchKey[];
+    protected _orderBy?: string[];
+    protected _distinct?: Array<keyof ThingChildChildFields>;
+    protected _valuesFields?: Array<keyof ThingChildChildFields>;
+    protected _exists?: boolean;
 
     constructor(lookups: ThingChildChildQuerySetLookups = {}, excludedLookups: ThingChildChildQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public serializeQuery(): object {
+        return {
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
+            or_: this._or.map((queryset) => queryset.serializeQuery())
+        }
     }
 
     public prefetch(...prefetchKeys: ThingChildChildPrefetchKey[]): this {
@@ -939,34 +1076,29 @@ export class ThingChildChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public serialize(): object {
-        return {
-            filters: flattenLookups(this.lookups),
-            exclude: flattenLookups(this.excludedLookups),
-            or_: this._or.map((queryset) => queryset.serialize())
-        }
+    public async values(...fields: Array<keyof ThingChildChildFields>): Promise<ServerDataPayload<QuerysetValuesList<ThingChildChildFields>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async values(...fields: Array<[keyof ThingChildChildFields]>): Promise<ServerDataPayload<object[]>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child-child//`, urlQuery);
-        return [responseData, statusCode, err]
-
+    public async pageValues(pageNum: number = 1, pageSize: number = 25, ...fields: Array<keyof ThingChildChildFields>): Promise<ServerDataPayload<PaginatedData<QuerysetValuesList<ThingChildChildFields>>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async pageValues(pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof ThingChildChildFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child-child//`, urlQuery);
-        return [responseData, statusCode, err]
+    public order_by(...fields: ModelFieldOrdering<ThingChildChildFields>[]): this {
+        this._orderBy = fields.map((fieldOrdering) => typeof fieldOrdering === 'string' ? (fieldOrdering) : (fieldOrdering.join('')));
+        return this
+    }
+
+    public distinct(...fields: Array<keyof ThingChildChildFields>): this {
+        this._distinct = fields;
+        return this
     }
 
     public async retrieve(): Promise<ServerPayload<ThingChildChild[]>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize());
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child-child//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve();
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [responseData.map((data) => new ThingChildChild(data)), responseData, statusCode, err]
         }
@@ -974,11 +1106,8 @@ export class ThingChildChildQuerySet {
     }
 
     public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<ThingChildChild>>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child-child//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve(pageNum, pageSize);
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [{
                 ...responseData,
@@ -988,7 +1117,30 @@ export class ThingChildChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async exists(): Promise<ServerPayload<boolean>> {
+        this._exists = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
+        let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
+        if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
+        if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
+        if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
+        if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
+        if (pageNum) { urlQuery += "&page=" + pageNum }
+        if (pageSize) { urlQuery += "&pageSize=" + pageSize }
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child-child//`, urlQuery);
+        return [responseData, statusCode, err]
+    }
+
 }
+
 
 
 // -------------------------
@@ -1012,6 +1164,7 @@ export class ThingChildChild implements ThingChildChildFields {
     number?: number
     parent_id: number
     @foreignKeyField(() => ThingChild) parent?: ThingChild
+    private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
@@ -1028,6 +1181,17 @@ export class ThingChildChild implements ThingChildChildFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public static setDetailLink(makeDetailLink: (pk: number) => string) {
+        ThingChildChild._makeDetailLink = makeDetailLink;
+    }
+
+    public detailLink(): string | undefined {
+        if (ThingChildChild._makeDetailLink) {
+            return ThingChildChild._makeDetailLink(this.pk())
+        }
+        return undefined
     }
 
     public async refresh(...prefetchKeys: ThingChildChildPrefetchKey[]) {
@@ -1139,10 +1303,22 @@ export class TimestampedModelQuerySet {
     protected excludedLookups: TimestampedModelQuerySetLookups;
     protected _or: TimestampedModelQuerySet[] = [];
     protected _prefetch: TimestampedModelPrefetchKey[];
+    protected _orderBy?: string[];
+    protected _distinct?: Array<keyof TimestampedModelFields>;
+    protected _valuesFields?: Array<keyof TimestampedModelFields>;
+    protected _exists?: boolean;
 
     constructor(lookups: TimestampedModelQuerySetLookups = {}, excludedLookups: TimestampedModelQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public serializeQuery(): object {
+        return {
+            filters: flattenLookups(this.lookups),
+            exclude: flattenLookups(this.excludedLookups),
+            or_: this._or.map((queryset) => queryset.serializeQuery())
+        }
     }
 
     public prefetch(...prefetchKeys: TimestampedModelPrefetchKey[]): this {
@@ -1210,34 +1386,29 @@ export class TimestampedModelQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public serialize(): object {
-        return {
-            filters: flattenLookups(this.lookups),
-            exclude: flattenLookups(this.excludedLookups),
-            or_: this._or.map((queryset) => queryset.serialize())
-        }
+    public async values(...fields: Array<keyof TimestampedModelFields>): Promise<ServerDataPayload<QuerysetValuesList<TimestampedModelFields>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async values(...fields: Array<[keyof TimestampedModelFields]>): Promise<ServerDataPayload<object[]>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields);
-        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
-        return [responseData, statusCode, err]
-
+    public async pageValues(pageNum: number = 1, pageSize: number = 25, ...fields: Array<keyof TimestampedModelFields>): Promise<ServerDataPayload<PaginatedData<QuerysetValuesList<TimestampedModelFields>>>> {
+        this._valuesFields = fields;
+        return await this._retrieve();
     }
 
-    public async pageValues(pageNum: number = 1, pageSize: number = 25,
-        ...fields: Array<[keyof TimestampedModelFields]>): Promise<ServerDataPayload<PaginatedData<object>>> {
-        const urlQuery = "query=" + JSON.stringify(this.serialize()) + "&fields=" + JSON.stringify(fields) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
-        return [responseData, statusCode, err]
+    public order_by(...fields: ModelFieldOrdering<TimestampedModelFields>[]): this {
+        this._orderBy = fields.map((fieldOrdering) => typeof fieldOrdering === 'string' ? (fieldOrdering) : (fieldOrdering.join('')));
+        return this
+    }
+
+    public distinct(...fields: Array<keyof TimestampedModelFields>): this {
+        this._distinct = fields;
+        return this
     }
 
     public async retrieve(): Promise<ServerPayload<TimestampedModel[]>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize());
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve();
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [responseData.map((data) => new TimestampedModel(data)), responseData, statusCode, err]
         }
@@ -1245,11 +1416,8 @@ export class TimestampedModelQuerySet {
     }
 
     public async retrievePage(pageNum: number = 1, pageSize: number = 25): Promise<ServerPayload<PaginatedData<TimestampedModel>>> {
-        let urlQuery = "query=" + JSON.stringify(this.serialize()) + "&page=" + pageNum + "&pagesize=" + pageSize;
-        if (this._prefetch) {
-            urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)
-        }
-        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        let [responseData, statusCode, err] = await this._retrieve(pageNum, pageSize);
+
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [{
                 ...responseData,
@@ -1259,7 +1427,30 @@ export class TimestampedModelQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async exists(): Promise<ServerPayload<boolean>> {
+        this._exists = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
+    private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
+        let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
+        if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
+        if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
+        if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
+        if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
+        if (pageNum) { urlQuery += "&page=" + pageNum }
+        if (pageSize) { urlQuery += "&pageSize=" + pageSize }
+        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        return [responseData, statusCode, err]
+    }
+
 }
+
 
 
 // -------------------------
@@ -1280,6 +1471,7 @@ export class TimestampedModel implements TimestampedModelFields {
     readonly id: number
     name?: string
     timestamp?: string
+    private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
         id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
@@ -1295,6 +1487,17 @@ export class TimestampedModel implements TimestampedModelFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public static setDetailLink(makeDetailLink: (pk: number) => string) {
+        TimestampedModel._makeDetailLink = makeDetailLink;
+    }
+
+    public detailLink(): string | undefined {
+        if (TimestampedModel._makeDetailLink) {
+            return TimestampedModel._makeDetailLink(this.pk())
+        }
+        return undefined
     }
 
     public async refresh(...prefetchKeys: TimestampedModelPrefetchKey[]) {

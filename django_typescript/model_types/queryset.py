@@ -92,12 +92,14 @@ class ModelTypeQuerysetBuilder(object):
 
     QUERY_KEY = 'query'
     PREFETCH_KEY = 'prefetch'
-    ORDER_ON_KEY = 'order_on'
+    ORDER_BY_KEY = 'order_by'
+    DISTINCT_KEY = 'distinct'
 
-    def __init__(self, query: ModelTypeQuery=None, order_on: typing.List[str]=None,
+    def __init__(self, query: ModelTypeQuery=None, order_by: typing.List[str]=None, distinct: typing.List[str]=None,
                  prefetch_trees: typing.List[types.PrefetchTree]= None):
         self.query = query
-        self.order_on = order_on
+        self.order_by = order_by
+        self.distinct = distinct
         self.prefetch_trees = prefetch_trees
 
     @classmethod
@@ -105,10 +107,12 @@ class ModelTypeQuerysetBuilder(object):
         kwargs = {}
         if cls.QUERY_KEY in request.query_params:
             kwargs['query'] = ModelTypeQuery(**json.loads(request.query_params[cls.QUERY_KEY]))
-        if cls.ORDER_ON_KEY in request.query_params:
-            kwargs['order_on'] = json.loads(request.query_params[cls.ORDER_ON_KEY])
+        if cls.ORDER_BY_KEY in request.query_params:
+            kwargs['order_by'] = json.loads(request.query_params[cls.ORDER_BY_KEY])
         if cls.PREFETCH_KEY in request.query_params:
             kwargs['prefetch_trees'] = json.loads(request.query_params[cls.PREFETCH_KEY])
+        if cls.DISTINCT_KEY in request.query_params:
+            kwargs['distinct'] = json.loads(request.query_params[cls.DISTINCT_KEY])
         return cls(**kwargs)
 
     def _flatten_prefetch_tree(self, prefetch_tree: types.PrefetchTree):
@@ -127,8 +131,10 @@ class ModelTypeQuerysetBuilder(object):
     def build_queryset(self, queryset: models.QuerySet) -> models.QuerySet:
         if self.query:
             queryset = self.query.apply_to_queryset(queryset)
-        if self.order_on:
-            queryset = queryset.order_by(*self.order_on)
+        if self.order_by:
+            queryset = queryset.order_by(*self.order_by)
+        if self.distinct:
+            queryset = queryset.distinct(*self.distinct)
         if self.prefetch_trees:
             queryset = queryset.select_related(
                 *[self._flatten_prefetch_tree(prefetch_tree) for prefetch_tree in self.prefetch_trees]
@@ -145,13 +151,13 @@ class ModelTypeQuerysetPayloadBuilder(object):
     PAGE_NUM_KEY = 'page'
     PAGE_SIZE_KEY = 'pagesize'
     DEFAULT_PAGE_SIZE = 25
-    FIELDS_KEY = 'fields'
+    VALUES_KEY = 'values'
     EXISTS_KEY = 'exists'
 
-    def __init__(self, queryset: models.QuerySet, fields: typing.List[str] = None, page_num: int = None,
+    def __init__(self, queryset: models.QuerySet, values: typing.List[str] = None, page_num: int = None,
                  page_size: int = None, exists: bool = False, many=True):
         self.queryset = queryset
-        self.fields = fields
+        self.values = values
         self.page_num = page_num
         self.page_size = page_size
         self.exists = exists
@@ -167,8 +173,8 @@ class ModelTypeQuerysetPayloadBuilder(object):
             'page_num': request.query_params.get(cls.PAGE_NUM_KEY),
             'page_size': request.query_params.get(cls.PAGE_SIZE_KEY, cls.DEFAULT_PAGE_SIZE)
         }
-        if cls.FIELDS_KEY in request.query_params:
-            kwargs['fields'] = json.loads(request.query_params[cls.FIELDS_KEY])
+        if cls.VALUES_KEY in request.query_params:
+            kwargs['values'] = json.loads(request.query_params[cls.VALUES_KEY])
         if cls.EXISTS_KEY in request.query_params:
             kwargs['exists'] = json.loads(request.query_params[cls.EXISTS_KEY])
         return cls(queryset=queryset, many=many, **kwargs)
@@ -176,9 +182,9 @@ class ModelTypeQuerysetPayloadBuilder(object):
     def paginated_payload(self, serializer_cls: types.ModelSerializerClass):
         assert self.is_paginated, 'Payload is not paginated.'
         queryset = self.queryset
-        if self.fields:
-            queryset = queryset.values(*self.fields)
-            serializer_cls = subset_serializer(serializer_cls=serializer_cls, select_fields=self.fields)
+        if self.values:
+            queryset = queryset.values(*self.values)
+            serializer_cls = subset_serializer(serializer_cls=serializer_cls, select_fields=self.values)
         paginator = Paginator(queryset, self.page_size)
         queryset = paginator.get_page(number=self.page_num)
         serializer = serializer_cls(queryset, many=self.many)
@@ -194,15 +200,15 @@ class ModelTypeQuerysetPayloadBuilder(object):
         return self.queryset.exists()
 
     def payload(self, serializer_cls: types.ModelSerializerClass):
-        if self.fields:
-            serializer_cls = subset_serializer(serializer_cls=serializer_cls, select_fields=self.fields)
+        if self.values:
+            serializer_cls = subset_serializer(serializer_cls=serializer_cls, select_fields=self.values)
         if self.is_paginated:
             return self.paginated_payload(serializer_cls=serializer_cls)
         if self.exists:
             return self.queryset.exists()
         queryset = self.queryset
-        if self.fields:
-            queryset = queryset.values(*self.fields)
+        if self.values:
+            queryset = queryset.values(*self.values)
         serializer = serializer_cls(queryset, many=self.many)
         return serializer.data
 

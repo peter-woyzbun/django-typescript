@@ -166,7 +166,7 @@ class TestModelTypeViews(TestCase):
             'or_': []
         }
         query_str = json.dumps(query)
-        view_url += '?query=' + query_str + "&fields=" + json.dumps(['name'])
+        view_url += '?query=' + query_str + "&values=" + json.dumps(['name'])
         response = self.client.get(view_url)
         self.assertEqual(set(response.data[0].keys()), {'name'})
 

@@ -65,6 +65,12 @@ class ForwardRelFieldTranspiler(object):
     def lookup_declarations(self):
         return [
             render_type_declaration(
+                name=self.model_field.get_attname(),
+                optional=True,
+                readonly=False,
+                type_=FieldTypeTranspiler.transpile(self.serializer_field)
+            ),
+            render_type_declaration(
                 name=self.model_field.name,
                 optional=True,
                 readonly=False,

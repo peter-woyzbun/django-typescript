@@ -3,7 +3,7 @@ from typing import Callable, Type
 from rest_framework import serializers
 
 from django_typescript.core import endpoints
-from django_typescript.core.views import MethodViewBase, Response, status
+from django_typescript.core.views import MethodViewBase, Response, status, MethodMeta
 from django_typescript.core.utils import underscore_to_dash
 
 
@@ -28,13 +28,12 @@ class ModelStaticMethodView(MethodViewBase):
         return self.func.__name__
 
     def _view_function(self):
-        if self.model_type_cls is None:
-            raise AssertionError("Cannot create ModelStaticMethodView view function without `model_type_cls` defined.")
 
         def static_method_view_func(request):
+            meta = MethodMeta(request=request)
             args = request.data
             args = self._args_to_internal_value(args)
-            output = self.func(self.model_type_cls, **args)
+            output = self.func(meta, **args)
             if isinstance(output, Response):
                 return output
             return Response(output, status=status.HTTP_200_OK)

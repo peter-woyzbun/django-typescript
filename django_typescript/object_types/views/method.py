@@ -49,13 +49,14 @@ class ObjectMethodView(MethodViewBase):
             # Request data that will be passed to this `ObjectMethodView`'s `obj_cls`
             # for initialization of a class instance.
             init_data = request.data.get('__init__')
-
+            print(init_data)
             obj_serializer = self.object_serializer_cls(data=init_data)
             obj_serializer.is_valid(raise_exception=True)
             # Create object instance from serialized data.
             obj = self.object_type_class(**obj_serializer.to_internal_value(init_data))
-            arg_data = request.data.get('__args__')
+            arg_data = request.data.get('__args__', {})
             arg_data = self._args_to_internal_value(arg_data=arg_data)
+
             output = self.func(obj, **arg_data)
             if isinstance(output, Response):
                 return output

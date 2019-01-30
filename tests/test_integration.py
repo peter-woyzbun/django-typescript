@@ -139,6 +139,31 @@ class TestIntegration(IntegrationTestCase):
         self._run_ts_test(test_name='exclude')
 
     @override_settings(ROOT_URLCONF=__name__)
+    def test_order_by(self):
+        self._run_ts_test(test_name='order_by')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_order_by_descending(self):
+        self._run_ts_test(test_name='order_by_descending')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_exists(self):
+        self._run_ts_test(test_name='exists')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_exists_negative(self):
+        self._run_ts_test(test_name='exists_negative')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_values(self):
+        self._run_ts_test(test_name='values')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def _test_distinct_values(self):
+        # Not supported by SQLite.
+        self._run_ts_test(test_name='distinct_values')
+
+    @override_settings(ROOT_URLCONF=__name__)
     def test_filter_or(self):
         self._run_ts_test(test_name='filter_or')
 
@@ -197,6 +222,10 @@ class TestIntegration(IntegrationTestCase):
     @override_settings(ROOT_URLCONF=__name__)
     def test_filter_is_null(self):
         self._run_ts_test(test_name='filter_is_null')
+
+    @override_settings(ROOT_URLCONF=__name__)
+    def test_detail_link(self):
+        self._run_ts_test(test_name='detail_link')
 
     @override_settings(ROOT_URLCONF=__name__)
     def test_object_method(self):

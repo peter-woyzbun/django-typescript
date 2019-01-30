@@ -49,9 +49,11 @@ class ReverseRelFieldTranspiler(object):
         related_field = self.model_field.get_related_field()
         lookup_key = None
         for field in self.model_field.related_model._meta.get_fields():
-            if isinstance(field, models.ForeignKey):
-                if field.remote_field.related_name == self.model_field.name:
-                    lookup_key = f" {field.name}: {{ {related_field.name}: this.pk() }}"
+            if isinstance(field, (models.ForeignKey, models.OneToOneRel)):
+                if field.remote_field == self.model_field:
+                    related_pk_name = self.model_field.related_model._meta.pk.name
+                    _lookup_key = f" {field.name}: {{ {related_field.name}: {{{related_pk_name}: this.pk()}} }}"
+                    lookup_key = f" {field.name}: {{ {related_field.get_attname()}: this.pk() }}"
         return lookup_key
 
     @property

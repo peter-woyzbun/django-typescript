@@ -31,8 +31,16 @@ export class __$object_name__ implements __$field_interface_name__{
                 __args__: data
            }
         {% endif %}
+        {% if not method.sig_interface %}
+        const postData = {
+                __init__: {
+                {{ init_mapping }}
+                }
 
-           return await serverClient.post(`{{ method.url}}`, {{ 'postData' if method.sig_interface else '{}' }});
+           }
+        {% endif %}
+
+           return await serverClient.post(`{{ method.url}}`, postData);
       }
       {% endfor %}>*/
 

@@ -1,30 +1,16 @@
 
-/*<
-// -------------------------
-// {{ queryset_name }}
-//
-// -------------------------
->*/
-
-
-export type __$prefetch_type_name__ = '{{ prefetch_type }}'
 
 
 
-export interface __$lookups_interface_name__ {
-    /*<{{ queryset_lookups }}>*/
-}
-
-export class __$queryset_name__{
+class __$queryset_name__{
 
     protected lookups: __$lookups_interface_name__;
     protected excludedLookups: __$lookups_interface_name__;
     protected _or: __$queryset_name__[] = [];
     protected _prefetch: __$prefetch_type_name__[];
     protected _orderBy?: string[];
-    protected _distinct?: Array<keyof __$field_interface_name__>;
-    protected _valuesFields?: Array<keyof __$field_interface_name__>;
-    protected _exists?: boolean;
+    protected _distinct?: Array<[keyof __$field_interface_name__]>;
+    protected _valuesFields?: Array<[keyof __$field_interface_name__]>;
 
     constructor(lookups: __$lookups_interface_name__ = {}, excludedLookups: __$lookups_interface_name__ = {}){
         this.lookups = lookups;
@@ -104,12 +90,12 @@ export class __$queryset_name__{
         return [undefined, responseData, statusCode, err]
     }
 
-    public async values(...fields: Array<keyof __$field_interface_name__>): Promise<ServerDataPayload<QuerysetValuesList<__$field_interface_name__>>>{
+    public async values(...fields: Array<[keyof __$field_interface_name__]>): ServerDataPayload<QuerysetValuesList<__$field_interface_name__>>{
         this._valuesFields = fields;
         return await this._retrieve();
     }
 
-    public async pageValues(pageNum: number = 1, pageSize: number = 25, ...fields: Array<keyof __$field_interface_name__>): Promise<ServerDataPayload<PaginatedData<QuerysetValuesList<__$field_interface_name__>>>>{
+    public async pageValues(pageNum: number = 1, pageSize: number = 25, ...fields: Array<[keyof __$field_interface_name__]>): ServerDataPayload<PaginatedData<QuerysetValuesList<__$field_interface_name__>>>{
         this._valuesFields = fields;
         return await this._retrieve();
     }
@@ -119,12 +105,7 @@ export class __$queryset_name__{
         return this
     }
 
-    public distinct(...fields:Array<keyof __$field_interface_name__>): this{
-        this._distinct = fields;
-        return this
-    }
-
-    public async retrieve(): Promise<ServerPayload<__$model_name__[]>>{
+    public async retrieve(): Promise<PayloadType>{
         let [responseData, statusCode, err] = await this._retrieve();
 
         if (statusCode in SuccessfulHttpStatusCodes){
@@ -145,22 +126,12 @@ export class __$queryset_name__{
         return [undefined, responseData, statusCode, err]
     }
 
-    public async exists(): Promise<ServerPayload<boolean>>{
-        this._exists = true;
-        let [responseData, statusCode, err] = await this._retrieve();
-        if (statusCode in SuccessfulHttpStatusCodes){
-            return [responseData, responseData, statusCode, err]
-        }
-         return [undefined, responseData, statusCode, err]
-    }
 
     private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse>{
         let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
         if (this._prefetch){urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)}
         if (this._orderBy){urlQuery += "&order_by=" + JSON.stringify(this._orderBy)}
         if (this._distinct){urlQuery += "&distinct=" + JSON.stringify(this._distinct)}
-        if (this._exists){urlQuery += "&exists=" + JSON.stringify(true)}
-        if (this._valuesFields){urlQuery += "&values=" + JSON.stringify(this._valuesFields)}
         if (pageNum){urlQuery += "&page=" + pageNum}
         if (pageSize){urlQuery += "&pageSize=" + pageSize}
         let [responseData, statusCode, err] = await serverClient.get(`'{{ list_url}}'`, urlQuery);
@@ -170,83 +141,7 @@ export class __$queryset_name__{
 }
 
 
-
-/*<
-// -------------------------
-// {{ model_name }}
-//
-// -------------------------
->*/
-
-
-export interface __$field_interface_name__ {
-    /*<{{ model_interface_types }}>*/
-}
-
-
 export class __$model_name__ implements __$field_interface_name__{
-
-    /*<{{ model_class_types }}>*/
-    private static _makeDetailLink?: (pk: __$pk_type__) => string;
-
-    public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
-         /*<{{ field_schemas }}>*/
-    }
-
-    constructor(data: __$field_interface_name__){
-        Object.assign(this, data);
-    }
-
-    static objects = __$queryset_name__;
-
-    public pk(): __$pk_type__{
-        /*< return  this.{{ pk_field_name }}  >*/
-    }
-
-    public static setDetailLink(makeDetailLink: (pk: __$pk_type__) => string){
-        __$model_name__._makeDetailLink = makeDetailLink;
-    }
-
-    public detailLink(): string | undefined{
-        if (__$model_name__._makeDetailLink){
-            return __$model_name__._makeDetailLink(this.pk())
-        }
-        return undefined
-    }
-
-    public async refresh(...prefetchKeys: __$prefetch_type_name__[]){
-        return __$queryset_name__.get(this.pk(), ...prefetchKeys)
-    }
-
-    public async update(data: Partial<__$field_interface_name__>): Promise<ServerPayload<__$model_name__>>{
-        let [responseData, statusCode, err] = await serverClient.post(`'{{ update_url}}'`, data);
-         if (statusCode in SuccessfulHttpStatusCodes){
-            return [new __$model_name__(responseData), responseData, statusCode, err]
-        }
-        return [undefined, responseData, statusCode, err];
-    }
-
-    public async delete(){
-        return await serverClient.delete(`'{{ delete_url }}'`);
-    }
-
-     /*<{% for reverse_relation in reverse_relations %}
-      public {{ reverse_relation.name }}(lookups: {{ reverse_relation.lookups_type }} = {}){
-           return new {{ reverse_relation.queryset_name }}({...lookups, ...{ {{ reverse_relation.lookup_key }}}})
-      }
-      {% endfor %}>*/
-
-     /*<{% for method in methods %}
-      public async {{ method.name }}({{ method.sig_interface }}){
-           return await serverClient.post(`{{ method.url}}`, {{ 'data' if method.sig_interface else '{}' }});
-      }
-      {% endfor %}>*/
-
-     /*<{% for static_method in static_methods %}
-      public static async {{ static_method.name }}({{ static_method.sig_interface }}){
-           return await serverClient.post(`{{ static_method.url}}`, data);
-      }
-      {% endfor %}>*/
 
 
 }

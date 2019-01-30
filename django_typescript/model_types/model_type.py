@@ -4,6 +4,7 @@ import re
 from django.db import models
 from rest_framework import serializers
 from django.urls import path
+from rest_framework.generics import CreateAPIView
 
 from django_typescript.model_types.serializer import ModelTypeSerializer
 from django_typescript.core.model_inspector import ModelInspector
@@ -44,7 +45,7 @@ class ModelType(object):
 
     def __init__(self, model_cls: typing.Type[models.Model], create_permissions: types.PermissionClasses = None,
                  get_permissions: types.PermissionClasses = None, delete_permissions: types.PermissionClasses = None,
-                 update_permissions: types.PermissionClasses = None):
+                 update_permissions: types.PermissionClasses = None, serializer_field_kwargs: dict = None):
 
         """
 
@@ -60,7 +61,8 @@ class ModelType(object):
         self.model_cls = model_cls
         self.model_inspector = ModelInspector(model_cls=model_cls)
         self.serializer: ModelTypeSerializer = ModelTypeSerializer(model_cls=model_cls,
-                                                                   validator=getattr(self, "validate", None))
+                                                                   validate_func=getattr(self, "validate", None),
+                                                                   serializer_field_kwargs=serializer_field_kwargs)
 
         self.create_view = CreateView(serializer=self.serializer,
                                       serializer_cls=self.serializer.base_serializer_cls,

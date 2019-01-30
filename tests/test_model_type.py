@@ -1,4 +1,5 @@
 from django.test import TestCase
+from rest_framework import serializers
 
 from django_typescript.model_types.model_type import ModelType
 from django_typescript.model_types.validator import ModelTypeValidator
@@ -50,4 +51,3 @@ class TestModelType(TestCase):
         child_thing = model_type.serializer_cls().create({'parent_id': parent_thing.id})
         self.assertTrue(child_thing.parent is not None)
         self.assertEqual(child_thing.parent.id, parent_thing.id)
-

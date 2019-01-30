@@ -30,6 +30,9 @@ class Signature(object):
     def __contains__(self, item):
         return item in self.parameters
 
+    def __len__(self):
+        return len(self.parameters.keys())
+
     @property
     def param_names(self):
         return [p.name for p in self.parameters.values()]
