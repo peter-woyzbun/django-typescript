@@ -203,6 +203,10 @@ export class __$model_name__ implements __$field_interface_name__{
         /*< return  this.{{ pk_field_name }}  >*/
     }
 
+    public toJSON(){
+        return this.pk()
+    }
+
     public static setDetailLink(makeDetailLink: (pk: __$pk_type__) => string){
         __$model_name__._makeDetailLink = makeDetailLink;
     }

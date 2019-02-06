@@ -218,7 +218,8 @@ class ModelTypeTranspiler(object):
             get_url=self._url_prefix + self.model_type.get_view.endpoint.url(TYPESCRIPT_ARG_PK_REF),
             get_or_create_url=self._url_prefix + self.model_type.get_or_create_view.endpoint.url(),
             create_url=self._url_prefix + self.model_type.create_view.endpoint.url(TYPESCRIPT_ARG_PK_REF),
-            list_url=self._url_prefix + self.model_type.list_view.endpoint.url(),
+            # Todo: fix hacky
+            list_url=self._url_prefix + self.model_type.list_view.endpoint.url().replace('//', '/'),
             delete_url=self._url_prefix + self.model_type.delete_view.endpoint.url(TYPESCRIPT_THIS_PK_REF),
             # -----
             model_interface_types=self.model_interface_types(),

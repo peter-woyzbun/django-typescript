@@ -237,6 +237,13 @@ test('create_timestamp', async t => {
 	t.is(timestampModel.timestamp, '2019-01-01T00:00:00');
 });
 
+test('all', async t => {
+     const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [createdThing2] = await Thing.objects.create({name: 'test_thing_2'});
+    const [retrievedThings] = await Thing.objects.all().retrieve();
+	t.is(retrievedThings.length, 2);
+});
+
 test('filter_dt', async t => {
     await TimestampedModel.objects.create({timestamp: '2019-01-01T00:00:00', name: 'a'});
     await TimestampedModel.objects.create({timestamp: '2019-01-02T00:00:00', name: 'b'});

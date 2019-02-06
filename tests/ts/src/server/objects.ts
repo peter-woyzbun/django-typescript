@@ -35,6 +35,7 @@ export class GenericObjectType implements GenericObjectTypeFields {
         }
 
 
+
         return await serverClient.post(`generic-object-type/object-method/`, postData);
     }
 
@@ -48,6 +49,7 @@ export class GenericObjectType implements GenericObjectTypeFields {
             },
             __args__: data
         }
+
 
 
         return await serverClient.post(`generic-object-type/object-method-w-arg-serializers/`, postData);

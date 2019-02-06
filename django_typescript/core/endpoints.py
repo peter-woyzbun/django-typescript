@@ -33,5 +33,8 @@ class Endpoint(object):
         if param_value is None:
             if Param in self.url_parts:
                 raise AssertionError("Trying to render an `Endpoint` that contains a parameter but no value provided.")
-            return "/".join(self.url_parts) + "/"
+            url = "/".join(self.url_parts)
+            if not url.endswith('/') and len(url) > 0:
+                url += '/'
+            return url
         return "/".join([p if p != Param else param_value for p in self.url_parts]) + "/"

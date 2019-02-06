@@ -212,6 +212,10 @@ class TestIntegration(IntegrationTestCase):
         self._run_ts_test(test_name='create_timestamp')
 
     @override_settings(ROOT_URLCONF=__name__)
+    def test_all(self):
+        self._run_ts_test(test_name='all')
+
+    @override_settings(ROOT_URLCONF=__name__)
     def test_filter_dt(self):
         self._run_ts_test(test_name='filter_dt')
 

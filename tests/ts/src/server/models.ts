@@ -15,7 +15,7 @@ import {
     ServerResponse
 } from './core'
 
-export type FieldType = 'OneToOneField' | 'DateTimeField' | 'ForeignKey' | 'CharField' | 'IntegerField' | 'AutoField'
+export type FieldType = 'CharField' | 'AutoField' | 'DateTimeField' | 'IntegerField' | 'ForeignKey' | 'OneToOneField'
 
 
 
