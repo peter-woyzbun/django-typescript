@@ -16,7 +16,8 @@ from django_typescript.model_types.views import (CreateView,
                                                  ListView,
                                                  ModelMethodView,
                                                  ModelStaticMethodView,
-                                                 UpdateView)
+                                                 UpdateView,
+                                                 ModelPropertyView)
 
 
 URL_PARAM = '<pk>'
@@ -42,10 +43,14 @@ class ModelType(object):
     _GET_PERMISSIONS: types.PermissionClasses = None
     _DELETE_PERMISSIONS: types.PermissionClasses = None
     _UPDATE_PERMISSIONS: types.PermissionClasses = None
+    _SERIALIZER_FIELD_KWARGS: dict = None
+    _ONE_TO_ONE_PROXY_FIELDS: types.OneToOneProxyFields = None
+    _PROPERTY_FIELDS: typing.List[str] = None
 
     def __init__(self, model_cls: typing.Type[models.Model], create_permissions: types.PermissionClasses = None,
                  get_permissions: types.PermissionClasses = None, delete_permissions: types.PermissionClasses = None,
-                 update_permissions: types.PermissionClasses = None, serializer_field_kwargs: dict = None):
+                 update_permissions: types.PermissionClasses = None, serializer_field_kwargs: dict = None,
+                 one_to_one_proxy_fields: types.OneToOneProxyFields = None, property_fields: typing.List[str] = None):
 
         """
 
@@ -62,7 +67,8 @@ class ModelType(object):
         self.model_inspector = ModelInspector(model_cls=model_cls)
         self.serializer: ModelTypeSerializer = ModelTypeSerializer(model_cls=model_cls,
                                                                    validate_func=getattr(self, "validate", None),
-                                                                   serializer_field_kwargs=serializer_field_kwargs)
+                                                                   serializer_field_kwargs=serializer_field_kwargs,
+                                                                   one_to_one_proxy_fields=one_to_one_proxy_fields)
 
         self.create_view = CreateView(serializer=self.serializer,
                                       serializer_cls=self.serializer.base_serializer_cls,
@@ -79,6 +85,8 @@ class ModelType(object):
                                   permission_classes=get_permissions)
         self.update_view = UpdateView(serializer=self.serializer, serializer_cls=self.serializer.base_serializer_cls,
                                       permission_classes=update_permissions)
+        self.one_to_one_proxy_fields = one_to_one_proxy_fields
+        self.property_fields = property_fields
 
     def __init_subclass__(cls, **kwargs):
         model_cls = kwargs.get('model_cls', None)
@@ -88,17 +96,24 @@ class ModelType(object):
         get_permissions = kwargs.get('get_permissions')
         delete_permissions = kwargs.get('delete_permissions')
         update_permissions = kwargs.get('update_permissions')
+        one_to_one_proxy_fields = kwargs.get('one_to_one_proxy_fields')
+        serializer_field_kwargs = kwargs.get('serializer_field_kwargs')
+        property_fields = kwargs.get('property_fields')
         cls._MODEL_CLS = model_cls
         cls._CREATE_PERMISSIONS = create_permissions
         cls._GET_PERMISSIONS = get_permissions
         cls._DELETE_PERMISSIONS = delete_permissions
         cls._UPDATE_PERMISSIONS = update_permissions
+        cls._SERIALIZER_FIELD_KWARGS = serializer_field_kwargs
+        cls._ONE_TO_ONE_PROXY_FIELDS = one_to_one_proxy_fields
+        cls._PROPERTY_FIELDS = property_fields
 
     @classmethod
     def as_type(cls) -> 'ModelType':
         type_ = cls(model_cls=cls._MODEL_CLS,create_permissions=cls._CREATE_PERMISSIONS,
                     get_permissions=cls._GET_PERMISSIONS, delete_permissions=cls._DELETE_PERMISSIONS,
-                    update_permissions=cls._UPDATE_PERMISSIONS)
+                    update_permissions=cls._UPDATE_PERMISSIONS, serializer_field_kwargs=cls._SERIALIZER_FIELD_KWARGS,
+                    one_to_one_proxy_fields=cls._ONE_TO_ONE_PROXY_FIELDS, property_fields=cls._PROPERTY_FIELDS)
         return type_
 
     @property
@@ -124,6 +139,15 @@ class ModelType(object):
             if isinstance(v, ModelStaticMethodView):
                 static_method_views.append(v)
         return static_method_views
+
+    @property
+    def property_views(self):
+        property_views = []
+        if self.property_fields is not None:
+            for property_field_name in self.property_fields:
+                property_views.append(ModelPropertyView(property_name=property_field_name,
+                                                        model_cls=self.model_cls))
+        return property_views
 
     @classmethod
     def method(cls, permission_classes=None, arg_serializer_cls: typing.Type[serializers.Serializer] = None,
@@ -178,6 +202,10 @@ class ModelType(object):
             static_method_view.model_type_cls = self.__class__
             urlpatterns.append(
                 path(static_method_view.endpoint.url(), static_method_view.view(), name=static_method_view.name),
+            )
+        for property_view in self.property_views:
+            urlpatterns.append(
+                path(property_view.endpoint.url(URL_PARAM), property_view.view(), name=property_view.name),
             )
         return urlpatterns
 

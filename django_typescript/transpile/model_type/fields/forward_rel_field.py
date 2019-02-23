@@ -3,7 +3,8 @@ from typing import List
 from django_typescript.core import types
 from django_typescript.transpile.model_type.common import (model_lookups_name,
                                                            forward_relation_getter_setter,
-                                                           model_prefetch_type_name)
+                                                           model_prefetch_type_name,
+                                                           model_property_prefetch_type_name)
 from django_typescript.transpile.literal import LiteralTranspiler
 from django_typescript.transpile.field_type import FieldTypeTranspiler
 from django_typescript.transpile.common import render_type_declaration
@@ -29,6 +30,12 @@ class ForwardRelFieldTranspiler(object):
         base_key = self.model_field.name
         related_prefetch_type = model_prefetch_type_name(self.model_field.related_model)
         return f"'{base_key}' | {{{base_key}: {related_prefetch_type}}}"
+
+    @property
+    def property_prefetch_type(self):
+        base_key = self.model_field.name
+        related_prefetch_type = model_property_prefetch_type_name(self.model_field.related_model)
+        return f"{{{base_key}: {related_prefetch_type}}}"
 
     def serialized_type_declaration(self) -> str:
         """

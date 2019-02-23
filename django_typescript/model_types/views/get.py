@@ -23,7 +23,8 @@ class GetView(ModelView):
     def _view_function(self):
         def get_view(request, pk):
             queryset = self.model_cls.objects.all()
-            queryset_builder = ModelTypeQuerysetBuilder.for_request(request=request)
+            queryset_builder = ModelTypeQuerysetBuilder.for_request(request=request,
+                                                                    model_cls=self.serializer_cls.Meta.model)
             queryset = queryset_builder.build_queryset(queryset=queryset)
             if queryset_builder.prefetch_trees:
                 serializer_cls = self.serializer.build_prefetch_serializer_tree(

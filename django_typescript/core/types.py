@@ -40,6 +40,8 @@ ModelPool = typing.List[ModelClass]
 
 ModelField = models.Field
 
+OneToOneProxyFields = typing.Dict[str, typing.List[str]]
+
 ForwardRelationField = typing.Union[models.ForeignKey, models.OneToOneField]
 
 ReverseRelationField = models.ManyToOneRel

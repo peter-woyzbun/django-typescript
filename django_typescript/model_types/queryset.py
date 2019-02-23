@@ -80,6 +80,44 @@ class ModelTypeQuery(object):
 
 
 # =================================
+# Prefetch Tree Select Related
+# ---------------------------------
+
+class PrefetchTreeSelectRelated(object):
+
+    def __init__(self, prefetch_tree: types.PrefetchTree, base_model: types.ModelClass, key_prefix = None):
+        self.prefetch_tree = prefetch_tree
+        self.base_model = base_model
+        self.key_prefix = key_prefix
+
+    def _select_related_key(self, key: str):
+        if self.key_prefix:
+            return self.key_prefix + "__" + key
+        return key
+
+    def select_related(self) -> typing.Union[typing.List[str], None]:
+        selected_related = []
+        if isinstance(self.prefetch_tree, str):
+            try:
+                self.base_model._meta.get_field(self.prefetch_tree)
+                selected_related.append(self._select_related_key(self.prefetch_tree))
+            except models.FieldDoesNotExist:
+                pass
+        else:
+            for k, v in self.prefetch_tree.items():
+                model_field = self.base_model._meta.get_field(k)
+                prefetch_tree_select_rel = PrefetchTreeSelectRelated(prefetch_tree=v,
+                                                                     base_model=model_field.related_model,
+                                                                     key_prefix=self._select_related_key(key=k))
+                nested_related = prefetch_tree_select_rel.select_related()
+                if nested_related:
+                    selected_related += nested_related
+        if len(selected_related) > 0:
+            return selected_related
+        return None
+
+
+# =================================
 # Model Type Queryset Builder
 # ---------------------------------
 
@@ -95,16 +133,17 @@ class ModelTypeQuerysetBuilder(object):
     ORDER_BY_KEY = 'order_by'
     DISTINCT_KEY = 'distinct'
 
-    def __init__(self, query: ModelTypeQuery=None, order_by: typing.List[str]=None, distinct: typing.List[str]=None,
+    def __init__(self,  model_cls: types.ModelClass, query: ModelTypeQuery=None, order_by: typing.List[str]=None, distinct: typing.List[str]=None,
                  prefetch_trees: typing.List[types.PrefetchTree]= None):
+        self.model_cls = model_cls
         self.query = query
         self.order_by = order_by
         self.distinct = distinct
         self.prefetch_trees = prefetch_trees
 
     @classmethod
-    def for_request(cls, request: Request) -> 'ModelTypeQuerysetBuilder':
-        kwargs = {}
+    def for_request(cls, request: Request, model_cls: types.ModelClass) -> 'ModelTypeQuerysetBuilder':
+        kwargs = {'model_cls': model_cls}
         if cls.QUERY_KEY in request.query_params:
             kwargs['query'] = ModelTypeQuery(**json.loads(request.query_params[cls.QUERY_KEY]))
         if cls.ORDER_BY_KEY in request.query_params:
@@ -123,10 +162,8 @@ class ModelTypeQuerysetBuilder(object):
 
         """
 
-        if isinstance(prefetch_tree, str):
-            return prefetch_tree
-        else:
-            return list(prefetch_tree.keys())[0] + "__" + self._flatten_prefetch_tree(list(prefetch_tree.values())[0])
+        prefetch_tree_select_rel = PrefetchTreeSelectRelated(base_model=self.model_cls, prefetch_tree=prefetch_tree)
+        return prefetch_tree_select_rel.select_related()
 
     def build_queryset(self, queryset: models.QuerySet) -> models.QuerySet:
         if self.query:
@@ -136,8 +173,14 @@ class ModelTypeQuerysetBuilder(object):
         if self.distinct:
             queryset = queryset.distinct(*self.distinct)
         if self.prefetch_trees:
+            select_related = []
+            for prefetch_tree in self.prefetch_trees:
+                tree_select_related = self._flatten_prefetch_tree(prefetch_tree=prefetch_tree)
+                if tree_select_related is not None:
+                    select_related += tree_select_related
+            print(select_related)
             queryset = queryset.select_related(
-                *[self._flatten_prefetch_tree(prefetch_tree) for prefetch_tree in self.prefetch_trees]
+                *[sr for sr in select_related if sr is not None]
             )
         return queryset
 
@@ -153,14 +196,16 @@ class ModelTypeQuerysetPayloadBuilder(object):
     DEFAULT_PAGE_SIZE = 25
     VALUES_KEY = 'values'
     EXISTS_KEY = 'exists'
+    COUNT_KEY = 'count'
 
     def __init__(self, queryset: models.QuerySet, values: typing.List[str] = None, page_num: int = None,
-                 page_size: int = None, exists: bool = False, many=True):
+                 page_size: int = None, exists: bool = False, many=True, count: bool = False):
         self.queryset = queryset
         self.values = values
         self.page_num = page_num
         self.page_size = page_size
         self.exists = exists
+        self.count = count
         self.many = many
 
     @property
@@ -177,6 +222,8 @@ class ModelTypeQuerysetPayloadBuilder(object):
             kwargs['values'] = json.loads(request.query_params[cls.VALUES_KEY])
         if cls.EXISTS_KEY in request.query_params:
             kwargs['exists'] = json.loads(request.query_params[cls.EXISTS_KEY])
+        if cls.COUNT_KEY in request.query_params:
+            kwargs['count'] = json.loads(request.query_params[cls.COUNT_KEY])
         return cls(queryset=queryset, many=many, **kwargs)
 
     def paginated_payload(self, serializer_cls: types.ModelSerializerClass):
@@ -206,6 +253,8 @@ class ModelTypeQuerysetPayloadBuilder(object):
             return self.paginated_payload(serializer_cls=serializer_cls)
         if self.exists:
             return self.queryset.exists()
+        if self.count:
+            return self.queryset.count()
         queryset = self.queryset
         if self.values:
             queryset = queryset.values(*self.values)

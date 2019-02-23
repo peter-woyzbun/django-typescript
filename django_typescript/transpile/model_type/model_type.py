@@ -9,6 +9,7 @@ from django_typescript.model_types import ModelType
 from django_typescript.core.utils.typescript_template import TypeScriptTemplate
 from django_typescript.transpile.field_type import FieldTypeTranspiler
 from django_typescript.transpile import templates
+from django_typescript.transpile.common import render_type_declaration
 from django_typescript.transpile.common import method_sig_interface
 from django_typescript.transpile.model_type.common import (model_prefetch_type_name,
                                                            model_lookups_name,
@@ -41,6 +42,7 @@ def model_field_interface_name(model_cls: types.ModelClass):
 
 ModelMethod = namedtuple('ModelMethod', ['name', 'sig_interface', 'url'])
 ReverseRelation = namedtuple('ReverseRelation', ['name', 'lookups_type', 'queryset_name', 'lookup_key'])
+PropertyField = namedtuple('PropertyField', ['name', 'url'])
 
 
 # =================================
@@ -111,6 +113,23 @@ class ModelTypeTranspiler(object):
                 if model_field.related_model in self.model_pool:
                     self.reverse_rel_fields.append(ReverseRelFieldTranspiler(model_field=model_field))
 
+    def _property_field_interface_declarations(self):
+        declarations = []
+        if self.model_type.property_fields is not None:
+            for property_field_name in self.model_type.property_fields:
+                declarations.append(
+                    render_type_declaration(name=property_field_name, readonly=True, optional=True, type_='any')
+                )
+        return declarations
+
+    def _property_field_model_declarations(self):
+        declarations = []
+        for property_view in self.model_type.property_views:
+            declarations.append(
+                f"@propertyField((pk) => `{property_view.endpoint.url('${pk}')}`, serverClient) {property_view.property_name}"
+            )
+        return declarations
+
     def queryset_lookup_types(self):
         type_declarations = []
         for field in self.concrete_fields:
@@ -118,12 +137,17 @@ class ModelTypeTranspiler(object):
         for field in self.forward_rel_fields:
             if field.model_field.related_model in self.model_pool:
                 type_declarations += field.lookup_declarations()
+        for field in self.reverse_rel_fields:
+            if field.model_field.related_model in self.model_pool:
+                type_declarations += field.lookup_declarations()
+
         return "\n".join(type_declarations)
 
     def model_interface_types(self):
         type_declarations = []
         for field_transpiler in self.concrete_fields + self.forward_rel_fields:
             type_declarations.append(field_transpiler.serialized_type_declaration())
+        type_declarations += self._property_field_interface_declarations()
         return "\n".join(type_declarations)
 
     def model_class_types(self):
@@ -145,6 +169,7 @@ class ModelTypeTranspiler(object):
         for field_transpiler in self.reverse_rel_fields:
             if field_transpiler.is_one_to_one:
                 type_declarations.append(field_transpiler.getter_setter_type_declaration())
+        type_declarations += self._property_field_model_declarations()
         return "\n".join(type_declarations)
 
     def _prefetch_type_body(self):
@@ -155,6 +180,8 @@ class ModelTypeTranspiler(object):
         for field_transpiler in self.reverse_rel_fields:
             if field_transpiler.is_one_to_one:
                 prefetch_parts.append(field_transpiler.prefetch_type)
+        if self.model_type.property_fields is not None:
+            prefetch_parts += [f"'{f}'" for f in self.model_type.property_fields]
         if not prefetch_parts:
             return 'never'
         return " |\n ".join(prefetch_parts)
@@ -182,6 +209,17 @@ class ModelTypeTranspiler(object):
                 )
             )
         return static_methods
+
+    def _property_fields(self) -> List[PropertyField]:
+        property_fields = []
+        for property_view in self.model_type.property_views:
+            property_fields.append(
+                PropertyField(
+                    name=property_view.name,
+                    url=self._url_prefix + property_view.endpoint.url(TYPESCRIPT_THIS_PK_REF),
+                )
+            )
+        return property_fields
 
     def _reverse_relations(self) -> List[ReverseRelFieldTranspiler]:
         reverse_relations = []

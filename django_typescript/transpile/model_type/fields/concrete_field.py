@@ -62,7 +62,8 @@ class ConcreteFieldTranspiler(object):
             'fieldName': self.serializer_field_name,
             'fieldType': self.model_field.__class__.__name__,
             'nullable': self.model_field.null,
-            'isReadOnly': self.serializer_field.read_only
+            'isReadOnly': self.serializer_field.read_only,
+            'description': self.serializer_field.help_text if isinstance(self.serializer_field.help_text, str) else None
         }
         if self.model_field.choices:
             schema['choices'] = self._schema_field_choices

@@ -10,7 +10,6 @@
 export type __$prefetch_type_name__ = '{{ prefetch_type }}'
 
 
-
 export interface __$lookups_interface_name__ {
     /*<{{ queryset_lookups }}>*/
 }
@@ -25,6 +24,7 @@ export class __$queryset_name__{
     protected _distinct?: Array<keyof __$field_interface_name__>;
     protected _valuesFields?: Array<keyof __$field_interface_name__>;
     protected _exists?: boolean;
+    protected  _count?: boolean;
 
     constructor(lookups: __$lookups_interface_name__ = {}, excludedLookups: __$lookups_interface_name__ = {}){
         this.lookups = lookups;
@@ -62,7 +62,7 @@ export class __$queryset_name__{
     }
 
     public exclude(lookups: Partial<__$lookups_interface_name__>): __$queryset_name__{
-        return new __$queryset_name__({}, {...this.excludedLookups, ...lookups})
+        return new __$queryset_name__(this.lookups, {...this.excludedLookups, ...lookups})
     }
 
      public or(queryset: __$queryset_name__): this{
@@ -154,12 +154,22 @@ export class __$queryset_name__{
          return [undefined, responseData, statusCode, err]
     }
 
+    public async count(): Promise<ServerPayload<number>>{
+        this._count = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes){
+            return [responseData, responseData, statusCode, err]
+        }
+         return [undefined, responseData, statusCode, err]
+    }
+
     private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse>{
         let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
         if (this._prefetch){urlQuery += "&prefetch=" + JSON.stringify(this._prefetch)}
         if (this._orderBy){urlQuery += "&order_by=" + JSON.stringify(this._orderBy)}
         if (this._distinct){urlQuery += "&distinct=" + JSON.stringify(this._distinct)}
         if (this._exists){urlQuery += "&exists=" + JSON.stringify(true)}
+        if (this._count){urlQuery += "&count=" + JSON.stringify(true)}
         if (this._valuesFields){urlQuery += "&values=" + JSON.stringify(this._valuesFields)}
         if (pageNum){urlQuery += "&page=" + pageNum}
         if (pageSize){urlQuery += "&pageSize=" + pageSize}

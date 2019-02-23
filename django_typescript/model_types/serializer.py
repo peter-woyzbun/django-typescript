@@ -25,12 +25,16 @@ class ModelTypeSerializer(object):
 
     AUTO_FIELD_SERIALIZER = serializers.IntegerField
 
-    def __init__(self, model_cls: types.ModelClass, validate_func: Callable = None, serializer_field_kwargs: dict = None):
+    def __init__(self, model_cls: types.ModelClass, validate_func: Callable = None, serializer_field_kwargs: dict = None,
+                 one_to_one_proxy_fields: types.OneToOneProxyFields=None, property_fields: List[str] = None):
         self.model_cls = model_cls
         self.validator = ModelTypeValidator(validate_func=validate_func) if validate_func else None
         self.serializer_field_kwargs = serializer_field_kwargs if serializer_field_kwargs is not None else {}
+        self.one_to_one_proxy_fields = one_to_one_proxy_fields
+        self.property_field_names = property_fields
         self.model_inspector = ModelInspector(model_cls=model_cls)
         self.concrete_fields: Dict[str, types.FieldSerializer] = {}
+        self.property_fields: Dict[str, types.FieldSerializer] = {}
         self.forward_rel_fields: Dict[str, types.FieldSerializer] = {}
         self.forward_rel_model_fields: Dict[str, types.ModelField] = {}
         self.field_info: List[FieldInfo] = []
@@ -53,6 +57,7 @@ class ModelTypeSerializer(object):
     def _build_fields(self):
         self._build_concrete_fields()
         self._build_forward_relation_fields()
+        self._build_property_fields()
 
     def _build_concrete_fields(self):
         helper_serializer = serializers.ModelSerializer()
@@ -64,6 +69,20 @@ class ModelTypeSerializer(object):
             self.field_info.append(
                 FieldInfo(serializer_field_name=model_field.name, model_field=model_field, serializer=field_serializer)
             )
+        if self.one_to_one_proxy_fields is not None:
+            for one_to_one_field_name, proxy_fields in self.one_to_one_proxy_fields.items():
+                for proxy_field_name in proxy_fields:
+                    one_to_one_field = self.model_cls._meta.get_field(one_to_one_field_name)
+                    related_model_cls = one_to_one_field.related_model
+                    model_proxy_field = related_model_cls._meta.get_field(proxy_field_name)
+                    field_class, field_kwargs = helper_serializer.build_standard_field(model_proxy_field.name, model_proxy_field)
+                    kwarg_overrides = self.serializer_field_kwargs.get(model_proxy_field.name, {})
+                    field_serializer = field_class(**{**field_kwargs, **kwarg_overrides, **{'source': one_to_one_field.name + '.' + model_proxy_field.name}})
+                    self.concrete_fields[model_proxy_field.name] = field_serializer
+                    self.field_info.append(
+                        FieldInfo(serializer_field_name=model_proxy_field.name, model_field=model_proxy_field,
+                                  serializer=field_serializer)
+                    )
 
     def _forward_rel_field_kwargs(self, model_field: types.ModelField):
         kwargs = {}
@@ -99,6 +118,14 @@ class ModelTypeSerializer(object):
                 FieldInfo(serializer_field_name=field_name, model_field=model_field, serializer=field_serializer)
             )
 
+    def _build_property_fields(self):
+        if self.property_field_names is not None:
+            for property_field_name in self.property_field_names:
+                self.property_fields[property_field_name] = self._property_field_serializer()
+
+    def _property_field_serializer(self):
+        return serializers.JSONField(read_only=True)
+
     def _resolve_validator_forward_relations(self, data: dict):
         resolved_relations = {}
         for k, v in data.items():
@@ -118,6 +145,10 @@ class ModelTypeSerializer(object):
         def validate(_self, attrs):
             if self.validator:
                 resolved_relations = self._resolve_validator_forward_relations(attrs)
+                if _self.partial:
+                    for validator_field_name in self.validator.validator_field_names:
+                        if validator_field_name not in attrs:
+                            attrs[validator_field_name] = getattr(_self.instance, validator_field_name)
                 self.validator.validate(**{**attrs, **resolved_relations})
             return serializers.ModelSerializer.validate(_self, attrs)
 
@@ -135,14 +166,22 @@ class ModelTypeSerializer(object):
                       [f.name for f in self.forward_rel_model_fields.values()]
         return allowed_names
 
+    def _build_prefetch_serializer(self, prefetch_field: str):
+        # If the prefetch_field is not a model field, it must be a 'property field'.
+        try:
+            model_field = self.model_cls._meta.get_field(prefetch_field)
+            serializer = ModelTypeSerializer(model_cls=model_field.related_model)
+            serializer_cls = serializer.base_serializer_cls
+            return serializer_cls(many=False)
+        except models.FieldDoesNotExist:
+            return self._property_field_serializer()
+
     def build_prefetch_serializer_tree(self, prefetch_trees: List[types.PrefetchTree]) -> types.ModelSerializerClass:
         prefetch_fields = dict()
         for prefetch_tree in prefetch_trees:
             if isinstance(prefetch_tree, str):
-                model_field = self.model_cls._meta.get_field(prefetch_tree)
-                serializer = ModelTypeSerializer(model_cls=model_field.related_model)
-                serializer_cls = serializer.base_serializer_cls
-                prefetch_fields[model_field.name] = serializer_cls(many=False)
+                prefetch_field = prefetch_tree
+                prefetch_fields[prefetch_field] = self._build_prefetch_serializer(prefetch_field=prefetch_field)
             else:
                 for k, v in prefetch_tree.items():
                     model_field = self.model_cls._meta.get_field(k)

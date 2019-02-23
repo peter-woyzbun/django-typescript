@@ -13,6 +13,7 @@ TYPESCRIPT_THIS_PK_REF = '${this.pk()}'
 TYPESCRIPT_ARG_PK_REF = '${primaryKey}'
 FIELDS_INTERFACE_SUFFIX = 'Fields'
 PREFETCH_KEY_TYPE_SUFFIX = 'PrefetchKey'
+PROPERTY_PREFETCH_KEY_TYPE_SUFFIX = 'PropertyPrefetchKey'
 
 
 # =================================
@@ -33,6 +34,10 @@ def model_lookups_name(model_cls: types.ModelClass):
 
 def model_prefetch_type_name(model_cls: types.ModelClass):
     return model_cls.__name__ + PREFETCH_KEY_TYPE_SUFFIX
+
+
+def model_property_prefetch_type_name(model_cls: types.ModelClass):
+    return model_cls.__name__ + PROPERTY_PREFETCH_KEY_TYPE_SUFFIX
 
 
 def forward_relation_getter_setter(related_model: types.ModelClass, field_name: str):
