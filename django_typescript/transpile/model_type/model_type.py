@@ -126,7 +126,7 @@ class ModelTypeTranspiler(object):
         declarations = []
         for property_view in self.model_type.property_views:
             declarations.append(
-                f"@propertyField((pk) => `{property_view.endpoint.url('${pk}')}`, serverClient) {property_view.property_name}"
+                f"@propertyField((pk) => `{self._url_prefix + property_view.endpoint.url('${pk}')}`, serverClient) {property_view.property_name}"
             )
         return declarations
 

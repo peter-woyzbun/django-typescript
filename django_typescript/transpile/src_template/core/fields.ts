@@ -127,12 +127,12 @@ export const propertyField = (url: (pk) => string, serverClient: ServerClient) =
         Object.defineProperty(target, propertyKey, {
 
             get: function () {
-                if (this[backingField]) {
+                if (this[backingField] !== undefined) {
                     return this[backingField]
                 }
                 const asyncGet = async () => {
                     let value;
-                     [value] = await serverClient.get(url(target.pk()));
+                     [value] = await serverClient.get(url(this.pk()));
                         this[backingField] = value;
                         return value
                 };

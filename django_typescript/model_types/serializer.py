@@ -5,6 +5,7 @@ from rest_framework import serializers
 from rest_framework.utils.field_mapping import get_field_kwargs, UniqueValidator
 
 from django_typescript.core import types
+from django_typescript import config
 from django_typescript.core.field_info import FieldInfo
 from django_typescript.core.model_inspector import ModelInspector
 from django_typescript.model_types.validator import ModelTypeValidator
@@ -62,7 +63,10 @@ class ModelTypeSerializer(object):
     def _build_concrete_fields(self):
         helper_serializer = serializers.ModelSerializer()
         for model_field in self.model_inspector.concrete_fields:
-            field_class, field_kwargs = helper_serializer.build_standard_field(model_field.name, model_field)
+            if type(model_field) in config.FIELD_TYPES:
+                field_class, field_kwargs = config.FIELD_TYPES[type(model_field)]['serializer_class'], {'required': not model_field.null}
+            else:
+                field_class, field_kwargs = helper_serializer.build_standard_field(model_field.name, model_field)
             kwarg_overrides = self.serializer_field_kwargs.get(model_field.name, {})
             field_serializer = field_class(**{**field_kwargs, **kwarg_overrides})
             self.concrete_fields[model_field.name] = field_serializer
@@ -151,7 +155,7 @@ class ModelTypeSerializer(object):
                             attrs[validator_field_name] = getattr(_self.instance, validator_field_name)
                 self.validator.validate(**{**attrs, **resolved_relations})
             return serializers.ModelSerializer.validate(_self, attrs)
-
+        print(self.concrete_fields)
         class_dict = {
             **{'Meta': Meta, 'validate': validate},
             **self.concrete_fields,

@@ -21,8 +21,8 @@ class GetOrCreateView(ModelView):
             serializer = self._get_serializer(data={**lookup, **defaults}, context={'request': request})
             serializer.is_valid(raise_exception=True)
             instance, created = self.model_cls.objects.get_or_create(**lookup, defaults=defaults)
+            serializer = self._get_serializer(instance, context={'request': request})
             if created:
-                serializer = self._get_serializer(instance, context={'request': request})
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.data)
         return get_or_create_view

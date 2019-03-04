@@ -1,6 +1,7 @@
 import inspect
 
 from django.db import models
+from django.contrib.gis.db import models as gis_models
 from django.db.models import lookups
 from django.db.models.fields import related_lookups
 try:
@@ -11,6 +12,7 @@ except:
 from rest_framework import serializers
 
 from django_typescript.core import typescript_types
+from django_typescript import config
 
 
 # =================================
@@ -74,6 +76,11 @@ class FieldTypeTranspiler(object):
             base_type = type(type_)
         else:
             base_type = type_
+        for model_field, data in config.FIELD_TYPES.items():
+            if base_type == data['serializer_class']:
+                return data['typescript_type']
+        if base_type in config.FIELD_TYPES:
+            return config.FIELD_TYPES[base_type]['typescript_type']
         root_type = cls.TYPE_TRANSPILERS.get(base_type, cls._DEFAULT_TYPE)(type_)
         if not container_type or container_type not in cls.TYPE_TRANSPILERS:
             return root_type

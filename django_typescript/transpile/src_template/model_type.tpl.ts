@@ -31,6 +31,16 @@ export class __$queryset_name__{
         this.excludedLookups = excludedLookups;
     }
 
+    private _clone(): __$queryset_name__{
+        const clone = new __$queryset_name__()
+        clone.lookups = this.lookups;
+        clone._prefetch = this._prefetch;
+        clone._orderBy = this._orderBy;
+        clone._or = this._or;
+        clone.excludedLookups = this.excludedLookups;
+        return clone;
+    }
+
     public serializeQuery(): object{
         return {
             filters: flattenLookups(this.lookups),
@@ -54,7 +64,9 @@ export class __$queryset_name__{
     }
 
     public filter(lookups: Partial<__$lookups_interface_name__>): __$queryset_name__{
-        return new __$queryset_name__({...this.lookups, ...lookups}, this.excludedLookups)
+        const clone = this._clone();
+        clone.lookups = lookups;
+        return clone
     }
 
      public static exclude(lookups: Partial<__$lookups_interface_name__>): __$queryset_name__{
@@ -82,8 +94,12 @@ export class __$queryset_name__{
         return [undefined, responseData, statusCode, err]
     }
 
-    public static async getOrCreate(lookup:Partial<__$field_interface_name__>,  defaults: Partial<__$field_interface_name__> = {}): Promise<ServerPayload<[__$model_name__, boolean]>>{
+    public static async getOrCreate(lookup:Partial<__$field_interface_name__>,  defaults: Partial<__$field_interface_name__> = {}, ...prefetchKeys: __$prefetch_type_name__[]): Promise<ServerPayload<[__$model_name__, boolean]>>{
         const data = {lookup, defaults};
+         let urlQuery = '';
+        if (prefetchKeys){
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
         let [responseData, statusCode, err] = await serverClient.post(`'{{ get_or_create_url }}'`, data);
 
         if (statusCode === 201){
@@ -217,6 +233,12 @@ export class __$model_name__ implements __$field_interface_name__{
         return this.pk()
     }
 
+    public fieldData(): __$field_interface_name__{
+        let fieldData = {}
+        Object.keys(__$model_name__.FIELD_SCHEMAS).map((fieldName) => fieldData[fieldName] = this[fieldName])
+        return fieldData as __$field_interface_name__
+    }
+
     public static setDetailLink(makeDetailLink: (pk: __$pk_type__) => string){
         __$model_name__._makeDetailLink = makeDetailLink;
     }
@@ -232,8 +254,10 @@ export class __$model_name__ implements __$field_interface_name__{
         return __$queryset_name__.get(this.pk(), ...prefetchKeys)
     }
 
-    public async update(data: Partial<__$field_interface_name__>): Promise<ServerPayload<__$model_name__>>{
-        let [responseData, statusCode, err] = await serverClient.post(`'{{ update_url}}'`, data);
+    public async update(data: Partial<__$field_interface_name__>, ...prefetchKeys: __$prefetch_type_name__[]): Promise<ServerPayload<__$model_name__>>{
+        let urlQuery = "";
+        if (prefetchKeys){urlQuery += "&prefetch=" + JSON.stringify(prefetchKeys)}
+        let [responseData, statusCode, err] = await serverClient.post(`'{{ update_url}}'`, data, urlQuery);
          if (statusCode in SuccessfulHttpStatusCodes){
             return [new __$model_name__(responseData), responseData, statusCode, err]
         }

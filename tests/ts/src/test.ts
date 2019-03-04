@@ -244,6 +244,17 @@ test('all', async t => {
 	t.is(retrievedThings.length, 2);
 });
 
+test('or', async t => {
+     const [createdThing] = await Thing.objects.create({name: 'test_thing'});
+    const [createdThing2] = await Thing.objects.create({name: 'test_thing_2'});
+    const [createdThing3] = await Thing.objects.create({name: 'test_thing_3'});
+    const [retrievedThings] = await Thing.objects.filter({name: 'test_thing'}).or(Thing.objects.filter({name: 'test_thing_2'})).retrieve();
+
+	t.is(retrievedThings.length, 2);
+});
+
+
+
 test('filter_dt', async t => {
     await TimestampedModel.objects.create({timestamp: '2019-01-01T00:00:00', name: 'a'});
     await TimestampedModel.objects.create({timestamp: '2019-01-02T00:00:00', name: 'b'});
