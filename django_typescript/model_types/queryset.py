@@ -191,7 +191,7 @@ class ModelTypeQuerysetBuilder(object):
 class ModelTypeQuerysetPayloadBuilder(object):
 
     PAGE_NUM_KEY = 'page'
-    PAGE_SIZE_KEY = 'pagesize'
+    PAGE_SIZE_KEY = 'pageSize'
     DEFAULT_PAGE_SIZE = 25
     VALUES_KEY = 'values'
     EXISTS_KEY = 'exists'
