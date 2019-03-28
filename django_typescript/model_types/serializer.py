@@ -155,7 +155,6 @@ class ModelTypeSerializer(object):
                             attrs[validator_field_name] = getattr(_self.instance, validator_field_name)
                 self.validator.validate(**{**attrs, **resolved_relations})
             return serializers.ModelSerializer.validate(_self, attrs)
-        print(self.concrete_fields)
         class_dict = {
             **{'Meta': Meta, 'validate': validate},
             **self.concrete_fields,

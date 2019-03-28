@@ -178,7 +178,6 @@ class ModelTypeQuerysetBuilder(object):
                 tree_select_related = self._flatten_prefetch_tree(prefetch_tree=prefetch_tree)
                 if tree_select_related is not None:
                     select_related += tree_select_related
-            print(select_related)
             queryset = queryset.select_related(
                 *[sr for sr in select_related if sr is not None]
             )
