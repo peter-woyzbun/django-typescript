@@ -1,5 +1,6 @@
 from django_typescript.core import endpoints
 from django_typescript.model_types.view import ModelView, Response, status
+from django_typescript.model_types.queryset import ModelTypeQuerysetBuilder, ModelTypeQuerysetPayloadBuilder
 
 
 # =================================
@@ -15,6 +16,7 @@ class GetOrCreateView(ModelView):
                            endpoint=endpoints.Endpoint('get-or-create'))
 
     def _view_function(self):
+
         def get_or_create_view(request):
             lookup = request.data['lookup']
             defaults = request.data['defaults']
@@ -24,5 +26,18 @@ class GetOrCreateView(ModelView):
             serializer = self._get_serializer(instance, context={'request': request})
             if created:
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.data)
+            queryset = self.model_cls.objects.all()
+            queryset_builder = ModelTypeQuerysetBuilder.for_request(request=request,
+                                                                    model_cls=self.serializer_cls.Meta.model)
+            queryset = queryset_builder.build_queryset(queryset=queryset)
+            if queryset_builder.prefetch_trees:
+                serializer_cls = self.serializer.build_prefetch_serializer_tree(
+                    prefetch_trees=queryset_builder.prefetch_trees
+                )
+            else:
+                serializer_cls = self.serializer_cls
+            queryset = queryset.get(pk=instance.pk)
+            payload_builder = ModelTypeQuerysetPayloadBuilder.for_request(request=request, queryset=queryset,
+                                                                          many=False)
+            return Response(payload_builder.payload(serializer_cls=serializer_cls))
         return get_or_create_view

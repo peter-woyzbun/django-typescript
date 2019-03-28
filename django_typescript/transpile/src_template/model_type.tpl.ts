@@ -65,7 +65,7 @@ export class __$queryset_name__{
 
     public filter(lookups: Partial<__$lookups_interface_name__>): __$queryset_name__{
         const clone = this._clone();
-        clone.lookups = lookups;
+        clone.lookups = _.merge(clone.lookups, lookups);
         return clone
     }
 
@@ -100,7 +100,7 @@ export class __$queryset_name__{
         if (prefetchKeys){
             urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
         }
-        let [responseData, statusCode, err] = await serverClient.post(`'{{ get_or_create_url }}'`, data);
+        let [responseData, statusCode, err] = await serverClient.post(`'{{ get_or_create_url }}'`, data, urlQuery);
 
         if (statusCode === 201){
             return [[new __$model_name__(responseData), true], responseData, statusCode, err]
