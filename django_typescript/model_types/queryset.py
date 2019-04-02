@@ -103,6 +103,13 @@ class PrefetchTreeSelectRelated(object):
                 selected_related.append(self._select_related_key(self.prefetch_tree))
             except models.FieldDoesNotExist:
                 pass
+        if isinstance(self.prefetch_tree, list):
+            for prefetch_field in self.prefetch_tree:
+                try:
+                    self.base_model._meta.get_field(prefetch_field)
+                    selected_related.append(self._select_related_key(prefetch_field))
+                except models.FieldDoesNotExist:
+                    pass
         else:
             for k, v in self.prefetch_tree.items():
                 model_field = self.base_model._meta.get_field(k)
