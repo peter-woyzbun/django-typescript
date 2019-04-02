@@ -29,7 +29,7 @@ class ForwardRelFieldTranspiler(object):
     def prefetch_type(self):
         base_key = self.model_field.name
         related_prefetch_type = model_prefetch_type_name(self.model_field.related_model)
-        return f"'{base_key}' | {{{base_key}: {related_prefetch_type}}}"
+        return f"'{base_key}' | {{{base_key}: {related_prefetch_type} | {related_prefetch_type}[]}}"
 
     @property
     def property_prefetch_type(self):

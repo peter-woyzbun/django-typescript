@@ -77,5 +77,5 @@ def field_is_relation(field: ModelField) -> bool:
 # Prefetch Tree
 # ---------------------------------
 
-PrefetchTree = typing.Union[str, typing.Dict[str, 'PrefetchTree']]
+PrefetchTree = typing.Union[str, typing.Dict[str, typing.Union['PrefetchTree', typing.List['PrefetchTree']]]]
 

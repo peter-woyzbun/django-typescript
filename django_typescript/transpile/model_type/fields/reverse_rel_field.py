@@ -36,7 +36,7 @@ class ReverseRelFieldTranspiler(object):
         if self.is_one_to_one:
             base_key = self.model_field.name
             related_prefetch_type = model_prefetch_type_name(self.model_field.related_model)
-            return f"'{base_key}' | {{{base_key}: {related_prefetch_type}}}"
+            return f"'{base_key}' | {{{base_key}: {related_prefetch_type} | {related_prefetch_type}[]}}"
 
     def getter_setter_type_declaration(self):
         if self.is_one_to_one:
