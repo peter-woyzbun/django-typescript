@@ -185,7 +185,7 @@ class ModelTypeSerializer(object):
             if isinstance(prefetch_tree, str):
                 prefetch_field = prefetch_tree
                 prefetch_fields[prefetch_field] = self._build_prefetch_serializer(prefetch_field=prefetch_field)
-            if isinstance(prefetch_tree, list):
+            elif isinstance(prefetch_tree, list):
                 for prefetch_field in prefetch_tree:
                     prefetch_fields[prefetch_field] = self._build_prefetch_serializer(prefetch_field=prefetch_field)
             else:
