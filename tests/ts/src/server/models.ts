@@ -1,8 +1,11 @@
+import * as _ from 'lodash'
+
 import { serverClient } from './client'
 import {
     PaginatedData,
     PrimaryKey,
     foreignKeyField,
+    propertyField,
     dateTimeField,
     ModelFieldsSchema,
     SuccessfulHttpStatusCodes,
@@ -15,7 +18,7 @@ import {
     ServerResponse
 } from './core'
 
-export type FieldType = 'CharField' | 'AutoField' | 'DateTimeField' | 'IntegerField' | 'ForeignKey' | 'OneToOneField'
+export type FieldType = 'DateTimeField' | 'OneToOneField' | 'IntegerField' | 'CharField' | 'ForeignKey' | 'AutoField'
 
 
 
@@ -56,8 +59,7 @@ const flattenLookups = function(ob) {
 // -------------------------
 
 
-export type ThingPrefetchKey = 'one_to_one_target' | { one_to_one_target: ThingOneToOneTargetPrefetchKey }
-
+export type ThingPrefetchKey = 'one_to_one_target' | { one_to_one_target: ThingOneToOneTargetPrefetchKey | ThingOneToOneTargetPrefetchKey[] }
 
 
 export interface ThingQuerySetLookups {
@@ -115,6 +117,8 @@ export interface ThingQuerySetLookups {
     number__isnull?: boolean
     number__regex?: number
     number__iregex?: number
+    one_to_one_target?: ThingOneToOneTargetQuerySetLookups
+    children?: ThingChildQuerySetLookups
 }
 
 export class ThingQuerySet {
@@ -127,10 +131,21 @@ export class ThingQuerySet {
     protected _distinct?: Array<keyof ThingFields>;
     protected _valuesFields?: Array<keyof ThingFields>;
     protected _exists?: boolean;
+    protected _count?: boolean;
 
     constructor(lookups: ThingQuerySetLookups = {}, excludedLookups: ThingQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public clone(): ThingQuerySet {
+        const clone = new ThingQuerySet()
+        clone.lookups = this.lookups;
+        clone._prefetch = this._prefetch;
+        clone._orderBy = this._orderBy;
+        clone._or = JSON.parse(JSON.stringify(this._or));
+        clone.excludedLookups = this.excludedLookups;
+        return clone;
     }
 
     public serializeQuery(): object {
@@ -156,7 +171,9 @@ export class ThingQuerySet {
     }
 
     public filter(lookups: Partial<ThingQuerySetLookups>): ThingQuerySet {
-        return new ThingQuerySet({ ...this.lookups, ...lookups }, this.excludedLookups)
+        const clone = this.clone();
+        clone.lookups = _.merge(clone.lookups, lookups);
+        return clone
     }
 
     public static exclude(lookups: Partial<ThingQuerySetLookups>): ThingQuerySet {
@@ -164,7 +181,7 @@ export class ThingQuerySet {
     }
 
     public exclude(lookups: Partial<ThingQuerySetLookups>): ThingQuerySet {
-        return new ThingQuerySet({}, { ...this.excludedLookups, ...lookups })
+        return new ThingQuerySet(this.lookups, { ...this.excludedLookups, ...lookups })
     }
 
     public or(queryset: ThingQuerySet): this {
@@ -184,9 +201,13 @@ export class ThingQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public static async getOrCreate(lookup: Partial<ThingFields>, defaults: Partial<ThingFields> = {}): Promise<ServerPayload<[Thing, boolean]>> {
+    public static async getOrCreate(lookup: Partial<ThingFields>, defaults: Partial<ThingFields> = {}, ...prefetchKeys: ThingPrefetchKey[]): Promise<ServerPayload<[Thing, boolean]>> {
         const data = { lookup, defaults };
-        let [responseData, statusCode, err] = await serverClient.post(`thing/get-or-create/`, data);
+        let urlQuery = '';
+        if (prefetchKeys) {
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.post(`thing/get-or-create/`, data, urlQuery);
 
         if (statusCode === 201) {
             return [[new Thing(responseData), true], responseData, statusCode, err]
@@ -256,16 +277,26 @@ export class ThingQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async count(): Promise<ServerPayload<number>> {
+        this._count = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
     private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
         let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
         if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
         if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
         if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
         if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._count) { urlQuery += "&count=" + JSON.stringify(true) }
         if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
         if (pageNum) { urlQuery += "&page=" + pageNum }
         if (pageSize) { urlQuery += "&pageSize=" + pageSize }
-        let [responseData, statusCode, err] = await serverClient.get(`thing//`, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing/`, urlQuery);
         return [responseData, statusCode, err]
     }
 
@@ -295,9 +326,9 @@ export class Thing implements ThingFields {
     private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
-        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
-        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
-        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false }
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true, description: null },
+        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false, description: null },
+        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false, description: null }
     }
 
     constructor(data: ThingFields) {
@@ -308,6 +339,16 @@ export class Thing implements ThingFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public toJSON() {
+        return this.pk()
+    }
+
+    public fieldData(): ThingFields {
+        let fieldData = {}
+        Object.keys(Thing.FIELD_SCHEMAS).map((fieldName) => fieldData[fieldName] = this[fieldName])
+        return fieldData as ThingFields
     }
 
     public static setDetailLink(makeDetailLink: (pk: number) => string) {
@@ -325,8 +366,10 @@ export class Thing implements ThingFields {
         return ThingQuerySet.get(this.pk(), ...prefetchKeys)
     }
 
-    public async update(data: Partial<ThingFields>): Promise<ServerPayload<Thing>> {
-        let [responseData, statusCode, err] = await serverClient.post(`thing/${this.pk()}/update/`, data);
+    public async update(data: Partial<ThingFields>, ...prefetchKeys: ThingPrefetchKey[]): Promise<ServerPayload<Thing>> {
+        let urlQuery = "";
+        if (prefetchKeys) { urlQuery += "&prefetch=" + JSON.stringify(prefetchKeys) }
+        let [responseData, statusCode, err] = await serverClient.post(`thing/${this.pk()}/update/`, data, urlQuery);
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [new Thing(responseData), responseData, statusCode, err]
         }
@@ -361,8 +404,7 @@ export class Thing implements ThingFields {
 // -------------------------
 
 
-export type ThingOneToOneTargetPrefetchKey = 'sibling_thing' | { sibling_thing: ThingPrefetchKey }
-
+export type ThingOneToOneTargetPrefetchKey = 'sibling_thing' | { sibling_thing: ThingPrefetchKey | ThingPrefetchKey[] }
 
 
 export interface ThingOneToOneTargetQuerySetLookups {
@@ -398,10 +440,21 @@ export class ThingOneToOneTargetQuerySet {
     protected _distinct?: Array<keyof ThingOneToOneTargetFields>;
     protected _valuesFields?: Array<keyof ThingOneToOneTargetFields>;
     protected _exists?: boolean;
+    protected _count?: boolean;
 
     constructor(lookups: ThingOneToOneTargetQuerySetLookups = {}, excludedLookups: ThingOneToOneTargetQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public clone(): ThingOneToOneTargetQuerySet {
+        const clone = new ThingOneToOneTargetQuerySet()
+        clone.lookups = this.lookups;
+        clone._prefetch = this._prefetch;
+        clone._orderBy = this._orderBy;
+        clone._or = JSON.parse(JSON.stringify(this._or));
+        clone.excludedLookups = this.excludedLookups;
+        return clone;
     }
 
     public serializeQuery(): object {
@@ -427,7 +480,9 @@ export class ThingOneToOneTargetQuerySet {
     }
 
     public filter(lookups: Partial<ThingOneToOneTargetQuerySetLookups>): ThingOneToOneTargetQuerySet {
-        return new ThingOneToOneTargetQuerySet({ ...this.lookups, ...lookups }, this.excludedLookups)
+        const clone = this.clone();
+        clone.lookups = _.merge(clone.lookups, lookups);
+        return clone
     }
 
     public static exclude(lookups: Partial<ThingOneToOneTargetQuerySetLookups>): ThingOneToOneTargetQuerySet {
@@ -435,7 +490,7 @@ export class ThingOneToOneTargetQuerySet {
     }
 
     public exclude(lookups: Partial<ThingOneToOneTargetQuerySetLookups>): ThingOneToOneTargetQuerySet {
-        return new ThingOneToOneTargetQuerySet({}, { ...this.excludedLookups, ...lookups })
+        return new ThingOneToOneTargetQuerySet(this.lookups, { ...this.excludedLookups, ...lookups })
     }
 
     public or(queryset: ThingOneToOneTargetQuerySet): this {
@@ -455,9 +510,13 @@ export class ThingOneToOneTargetQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public static async getOrCreate(lookup: Partial<ThingOneToOneTargetFields>, defaults: Partial<ThingOneToOneTargetFields> = {}): Promise<ServerPayload<[ThingOneToOneTarget, boolean]>> {
+    public static async getOrCreate(lookup: Partial<ThingOneToOneTargetFields>, defaults: Partial<ThingOneToOneTargetFields> = {}, ...prefetchKeys: ThingOneToOneTargetPrefetchKey[]): Promise<ServerPayload<[ThingOneToOneTarget, boolean]>> {
         const data = { lookup, defaults };
-        let [responseData, statusCode, err] = await serverClient.post(`thing-one-to-one-target/get-or-create/`, data);
+        let urlQuery = '';
+        if (prefetchKeys) {
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.post(`thing-one-to-one-target/get-or-create/`, data, urlQuery);
 
         if (statusCode === 201) {
             return [[new ThingOneToOneTarget(responseData), true], responseData, statusCode, err]
@@ -527,16 +586,26 @@ export class ThingOneToOneTargetQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async count(): Promise<ServerPayload<number>> {
+        this._count = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
     private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
         let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
         if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
         if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
         if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
         if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._count) { urlQuery += "&count=" + JSON.stringify(true) }
         if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
         if (pageNum) { urlQuery += "&page=" + pageNum }
         if (pageSize) { urlQuery += "&pageSize=" + pageSize }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target//`, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing-one-to-one-target/`, urlQuery);
         return [responseData, statusCode, err]
     }
 
@@ -564,7 +633,7 @@ export class ThingOneToOneTarget implements ThingOneToOneTargetFields {
     private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
-        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true, description: null },
         sibling_thing_id: { fieldName: 'sibling_thing_id', fieldType: 'IntegerField', nullable: false, isReadOnly: false, relatedModel: () => Thing }
     }
 
@@ -576,6 +645,16 @@ export class ThingOneToOneTarget implements ThingOneToOneTargetFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public toJSON() {
+        return this.pk()
+    }
+
+    public fieldData(): ThingOneToOneTargetFields {
+        let fieldData = {}
+        Object.keys(ThingOneToOneTarget.FIELD_SCHEMAS).map((fieldName) => fieldData[fieldName] = this[fieldName])
+        return fieldData as ThingOneToOneTargetFields
     }
 
     public static setDetailLink(makeDetailLink: (pk: number) => string) {
@@ -593,8 +672,10 @@ export class ThingOneToOneTarget implements ThingOneToOneTargetFields {
         return ThingOneToOneTargetQuerySet.get(this.pk(), ...prefetchKeys)
     }
 
-    public async update(data: Partial<ThingOneToOneTargetFields>): Promise<ServerPayload<ThingOneToOneTarget>> {
-        let [responseData, statusCode, err] = await serverClient.post(`thing-one-to-one-target/${this.pk()}/update/`, data);
+    public async update(data: Partial<ThingOneToOneTargetFields>, ...prefetchKeys: ThingOneToOneTargetPrefetchKey[]): Promise<ServerPayload<ThingOneToOneTarget>> {
+        let urlQuery = "";
+        if (prefetchKeys) { urlQuery += "&prefetch=" + JSON.stringify(prefetchKeys) }
+        let [responseData, statusCode, err] = await serverClient.post(`thing-one-to-one-target/${this.pk()}/update/`, data, urlQuery);
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [new ThingOneToOneTarget(responseData), responseData, statusCode, err]
         }
@@ -620,8 +701,7 @@ export class ThingOneToOneTarget implements ThingOneToOneTargetFields {
 // -------------------------
 
 
-export type ThingChildPrefetchKey = 'parent' | { parent: ThingPrefetchKey }
-
+export type ThingChildPrefetchKey = 'parent' | { parent: ThingPrefetchKey | ThingPrefetchKey[] }
 
 
 export interface ThingChildQuerySetLookups {
@@ -681,6 +761,7 @@ export interface ThingChildQuerySetLookups {
     number__iregex?: number
     parent_id?: number
     parent?: ThingQuerySetLookups
+    children?: ThingChildChildQuerySetLookups
 }
 
 export class ThingChildQuerySet {
@@ -693,10 +774,21 @@ export class ThingChildQuerySet {
     protected _distinct?: Array<keyof ThingChildFields>;
     protected _valuesFields?: Array<keyof ThingChildFields>;
     protected _exists?: boolean;
+    protected _count?: boolean;
 
     constructor(lookups: ThingChildQuerySetLookups = {}, excludedLookups: ThingChildQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public clone(): ThingChildQuerySet {
+        const clone = new ThingChildQuerySet()
+        clone.lookups = this.lookups;
+        clone._prefetch = this._prefetch;
+        clone._orderBy = this._orderBy;
+        clone._or = JSON.parse(JSON.stringify(this._or));
+        clone.excludedLookups = this.excludedLookups;
+        return clone;
     }
 
     public serializeQuery(): object {
@@ -722,7 +814,9 @@ export class ThingChildQuerySet {
     }
 
     public filter(lookups: Partial<ThingChildQuerySetLookups>): ThingChildQuerySet {
-        return new ThingChildQuerySet({ ...this.lookups, ...lookups }, this.excludedLookups)
+        const clone = this.clone();
+        clone.lookups = _.merge(clone.lookups, lookups);
+        return clone
     }
 
     public static exclude(lookups: Partial<ThingChildQuerySetLookups>): ThingChildQuerySet {
@@ -730,7 +824,7 @@ export class ThingChildQuerySet {
     }
 
     public exclude(lookups: Partial<ThingChildQuerySetLookups>): ThingChildQuerySet {
-        return new ThingChildQuerySet({}, { ...this.excludedLookups, ...lookups })
+        return new ThingChildQuerySet(this.lookups, { ...this.excludedLookups, ...lookups })
     }
 
     public or(queryset: ThingChildQuerySet): this {
@@ -750,9 +844,13 @@ export class ThingChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public static async getOrCreate(lookup: Partial<ThingChildFields>, defaults: Partial<ThingChildFields> = {}): Promise<ServerPayload<[ThingChild, boolean]>> {
+    public static async getOrCreate(lookup: Partial<ThingChildFields>, defaults: Partial<ThingChildFields> = {}, ...prefetchKeys: ThingChildPrefetchKey[]): Promise<ServerPayload<[ThingChild, boolean]>> {
         const data = { lookup, defaults };
-        let [responseData, statusCode, err] = await serverClient.post(`thing-child/get-or-create/`, data);
+        let urlQuery = '';
+        if (prefetchKeys) {
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child/get-or-create/`, data, urlQuery);
 
         if (statusCode === 201) {
             return [[new ThingChild(responseData), true], responseData, statusCode, err]
@@ -822,16 +920,26 @@ export class ThingChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async count(): Promise<ServerPayload<number>> {
+        this._count = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
     private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
         let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
         if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
         if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
         if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
         if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._count) { urlQuery += "&count=" + JSON.stringify(true) }
         if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
         if (pageNum) { urlQuery += "&page=" + pageNum }
         if (pageSize) { urlQuery += "&pageSize=" + pageSize }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child//`, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child/`, urlQuery);
         return [responseData, statusCode, err]
     }
 
@@ -863,9 +971,9 @@ export class ThingChild implements ThingChildFields {
     private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
-        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
-        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
-        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false },
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true, description: null },
+        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false, description: null },
+        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false, description: null },
         parent_id: { fieldName: 'parent_id', fieldType: 'IntegerField', nullable: false, isReadOnly: false, relatedModel: () => Thing }
     }
 
@@ -877,6 +985,16 @@ export class ThingChild implements ThingChildFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public toJSON() {
+        return this.pk()
+    }
+
+    public fieldData(): ThingChildFields {
+        let fieldData = {}
+        Object.keys(ThingChild.FIELD_SCHEMAS).map((fieldName) => fieldData[fieldName] = this[fieldName])
+        return fieldData as ThingChildFields
     }
 
     public static setDetailLink(makeDetailLink: (pk: number) => string) {
@@ -894,8 +1012,10 @@ export class ThingChild implements ThingChildFields {
         return ThingChildQuerySet.get(this.pk(), ...prefetchKeys)
     }
 
-    public async update(data: Partial<ThingChildFields>): Promise<ServerPayload<ThingChild>> {
-        let [responseData, statusCode, err] = await serverClient.post(`thing-child/${this.pk()}/update/`, data);
+    public async update(data: Partial<ThingChildFields>, ...prefetchKeys: ThingChildPrefetchKey[]): Promise<ServerPayload<ThingChild>> {
+        let urlQuery = "";
+        if (prefetchKeys) { urlQuery += "&prefetch=" + JSON.stringify(prefetchKeys) }
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child/${this.pk()}/update/`, data, urlQuery);
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [new ThingChild(responseData), responseData, statusCode, err]
         }
@@ -924,8 +1044,7 @@ export class ThingChild implements ThingChildFields {
 // -------------------------
 
 
-export type ThingChildChildPrefetchKey = 'parent' | { parent: ThingChildPrefetchKey }
-
+export type ThingChildChildPrefetchKey = 'parent' | { parent: ThingChildPrefetchKey | ThingChildPrefetchKey[] }
 
 
 export interface ThingChildChildQuerySetLookups {
@@ -997,10 +1116,21 @@ export class ThingChildChildQuerySet {
     protected _distinct?: Array<keyof ThingChildChildFields>;
     protected _valuesFields?: Array<keyof ThingChildChildFields>;
     protected _exists?: boolean;
+    protected _count?: boolean;
 
     constructor(lookups: ThingChildChildQuerySetLookups = {}, excludedLookups: ThingChildChildQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public clone(): ThingChildChildQuerySet {
+        const clone = new ThingChildChildQuerySet()
+        clone.lookups = this.lookups;
+        clone._prefetch = this._prefetch;
+        clone._orderBy = this._orderBy;
+        clone._or = JSON.parse(JSON.stringify(this._or));
+        clone.excludedLookups = this.excludedLookups;
+        return clone;
     }
 
     public serializeQuery(): object {
@@ -1026,7 +1156,9 @@ export class ThingChildChildQuerySet {
     }
 
     public filter(lookups: Partial<ThingChildChildQuerySetLookups>): ThingChildChildQuerySet {
-        return new ThingChildChildQuerySet({ ...this.lookups, ...lookups }, this.excludedLookups)
+        const clone = this.clone();
+        clone.lookups = _.merge(clone.lookups, lookups);
+        return clone
     }
 
     public static exclude(lookups: Partial<ThingChildChildQuerySetLookups>): ThingChildChildQuerySet {
@@ -1034,7 +1166,7 @@ export class ThingChildChildQuerySet {
     }
 
     public exclude(lookups: Partial<ThingChildChildQuerySetLookups>): ThingChildChildQuerySet {
-        return new ThingChildChildQuerySet({}, { ...this.excludedLookups, ...lookups })
+        return new ThingChildChildQuerySet(this.lookups, { ...this.excludedLookups, ...lookups })
     }
 
     public or(queryset: ThingChildChildQuerySet): this {
@@ -1054,9 +1186,13 @@ export class ThingChildChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public static async getOrCreate(lookup: Partial<ThingChildChildFields>, defaults: Partial<ThingChildChildFields> = {}): Promise<ServerPayload<[ThingChildChild, boolean]>> {
+    public static async getOrCreate(lookup: Partial<ThingChildChildFields>, defaults: Partial<ThingChildChildFields> = {}, ...prefetchKeys: ThingChildChildPrefetchKey[]): Promise<ServerPayload<[ThingChildChild, boolean]>> {
         const data = { lookup, defaults };
-        let [responseData, statusCode, err] = await serverClient.post(`thing-child-child/get-or-create/`, data);
+        let urlQuery = '';
+        if (prefetchKeys) {
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child-child/get-or-create/`, data, urlQuery);
 
         if (statusCode === 201) {
             return [[new ThingChildChild(responseData), true], responseData, statusCode, err]
@@ -1126,16 +1262,26 @@ export class ThingChildChildQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async count(): Promise<ServerPayload<number>> {
+        this._count = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
     private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
         let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
         if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
         if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
         if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
         if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._count) { urlQuery += "&count=" + JSON.stringify(true) }
         if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
         if (pageNum) { urlQuery += "&page=" + pageNum }
         if (pageSize) { urlQuery += "&pageSize=" + pageSize }
-        let [responseData, statusCode, err] = await serverClient.get(`thing-child-child//`, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`thing-child-child/`, urlQuery);
         return [responseData, statusCode, err]
     }
 
@@ -1167,9 +1313,9 @@ export class ThingChildChild implements ThingChildChildFields {
     private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
-        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
-        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
-        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false },
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true, description: null },
+        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false, description: null },
+        number: { fieldName: 'number', fieldType: 'IntegerField', nullable: true, isReadOnly: false, description: null },
         parent_id: { fieldName: 'parent_id', fieldType: 'IntegerField', nullable: false, isReadOnly: false, relatedModel: () => ThingChild }
     }
 
@@ -1181,6 +1327,16 @@ export class ThingChildChild implements ThingChildChildFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public toJSON() {
+        return this.pk()
+    }
+
+    public fieldData(): ThingChildChildFields {
+        let fieldData = {}
+        Object.keys(ThingChildChild.FIELD_SCHEMAS).map((fieldName) => fieldData[fieldName] = this[fieldName])
+        return fieldData as ThingChildChildFields
     }
 
     public static setDetailLink(makeDetailLink: (pk: number) => string) {
@@ -1198,8 +1354,10 @@ export class ThingChildChild implements ThingChildChildFields {
         return ThingChildChildQuerySet.get(this.pk(), ...prefetchKeys)
     }
 
-    public async update(data: Partial<ThingChildChildFields>): Promise<ServerPayload<ThingChildChild>> {
-        let [responseData, statusCode, err] = await serverClient.post(`thing-child-child/${this.pk()}/update/`, data);
+    public async update(data: Partial<ThingChildChildFields>, ...prefetchKeys: ThingChildChildPrefetchKey[]): Promise<ServerPayload<ThingChildChild>> {
+        let urlQuery = "";
+        if (prefetchKeys) { urlQuery += "&prefetch=" + JSON.stringify(prefetchKeys) }
+        let [responseData, statusCode, err] = await serverClient.post(`thing-child-child/${this.pk()}/update/`, data, urlQuery);
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [new ThingChildChild(responseData), responseData, statusCode, err]
         }
@@ -1226,7 +1384,6 @@ export class ThingChildChild implements ThingChildChildFields {
 
 
 export type TimestampedModelPrefetchKey = never
-
 
 
 export interface TimestampedModelQuerySetLookups {
@@ -1307,10 +1464,21 @@ export class TimestampedModelQuerySet {
     protected _distinct?: Array<keyof TimestampedModelFields>;
     protected _valuesFields?: Array<keyof TimestampedModelFields>;
     protected _exists?: boolean;
+    protected _count?: boolean;
 
     constructor(lookups: TimestampedModelQuerySetLookups = {}, excludedLookups: TimestampedModelQuerySetLookups = {}) {
         this.lookups = lookups;
         this.excludedLookups = excludedLookups;
+    }
+
+    public clone(): TimestampedModelQuerySet {
+        const clone = new TimestampedModelQuerySet()
+        clone.lookups = this.lookups;
+        clone._prefetch = this._prefetch;
+        clone._orderBy = this._orderBy;
+        clone._or = JSON.parse(JSON.stringify(this._or));
+        clone.excludedLookups = this.excludedLookups;
+        return clone;
     }
 
     public serializeQuery(): object {
@@ -1336,7 +1504,9 @@ export class TimestampedModelQuerySet {
     }
 
     public filter(lookups: Partial<TimestampedModelQuerySetLookups>): TimestampedModelQuerySet {
-        return new TimestampedModelQuerySet({ ...this.lookups, ...lookups }, this.excludedLookups)
+        const clone = this.clone();
+        clone.lookups = _.merge(clone.lookups, lookups);
+        return clone
     }
 
     public static exclude(lookups: Partial<TimestampedModelQuerySetLookups>): TimestampedModelQuerySet {
@@ -1344,7 +1514,7 @@ export class TimestampedModelQuerySet {
     }
 
     public exclude(lookups: Partial<TimestampedModelQuerySetLookups>): TimestampedModelQuerySet {
-        return new TimestampedModelQuerySet({}, { ...this.excludedLookups, ...lookups })
+        return new TimestampedModelQuerySet(this.lookups, { ...this.excludedLookups, ...lookups })
     }
 
     public or(queryset: TimestampedModelQuerySet): this {
@@ -1364,9 +1534,13 @@ export class TimestampedModelQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
-    public static async getOrCreate(lookup: Partial<TimestampedModelFields>, defaults: Partial<TimestampedModelFields> = {}): Promise<ServerPayload<[TimestampedModel, boolean]>> {
+    public static async getOrCreate(lookup: Partial<TimestampedModelFields>, defaults: Partial<TimestampedModelFields> = {}, ...prefetchKeys: TimestampedModelPrefetchKey[]): Promise<ServerPayload<[TimestampedModel, boolean]>> {
         const data = { lookup, defaults };
-        let [responseData, statusCode, err] = await serverClient.post(`timestamped-model/get-or-create/`, data);
+        let urlQuery = '';
+        if (prefetchKeys) {
+            urlQuery += "prefetch=" + JSON.stringify(prefetchKeys)
+        }
+        let [responseData, statusCode, err] = await serverClient.post(`timestamped-model/get-or-create/`, data, urlQuery);
 
         if (statusCode === 201) {
             return [[new TimestampedModel(responseData), true], responseData, statusCode, err]
@@ -1436,16 +1610,26 @@ export class TimestampedModelQuerySet {
         return [undefined, responseData, statusCode, err]
     }
 
+    public async count(): Promise<ServerPayload<number>> {
+        this._count = true;
+        let [responseData, statusCode, err] = await this._retrieve();
+        if (statusCode in SuccessfulHttpStatusCodes) {
+            return [responseData, responseData, statusCode, err]
+        }
+        return [undefined, responseData, statusCode, err]
+    }
+
     private async _retrieve(pageNum?: number, pageSize?: number): Promise<ServerResponse> {
         let urlQuery = "query=" + JSON.stringify(this.serializeQuery());
         if (this._prefetch) { urlQuery += "&prefetch=" + JSON.stringify(this._prefetch) }
         if (this._orderBy) { urlQuery += "&order_by=" + JSON.stringify(this._orderBy) }
         if (this._distinct) { urlQuery += "&distinct=" + JSON.stringify(this._distinct) }
         if (this._exists) { urlQuery += "&exists=" + JSON.stringify(true) }
+        if (this._count) { urlQuery += "&count=" + JSON.stringify(true) }
         if (this._valuesFields) { urlQuery += "&values=" + JSON.stringify(this._valuesFields) }
         if (pageNum) { urlQuery += "&page=" + pageNum }
         if (pageSize) { urlQuery += "&pageSize=" + pageSize }
-        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model//`, urlQuery);
+        let [responseData, statusCode, err] = await serverClient.get(`timestamped-model/`, urlQuery);
         return [responseData, statusCode, err]
     }
 
@@ -1474,9 +1658,9 @@ export class TimestampedModel implements TimestampedModelFields {
     private static _makeDetailLink?: (pk: number) => string;
 
     public static readonly FIELD_SCHEMAS: ModelFieldsSchema<FieldType> = {
-        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true },
-        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false },
-        timestamp: { fieldName: 'timestamp', fieldType: 'DateTimeField', nullable: true, isReadOnly: false }
+        id: { fieldName: 'id', fieldType: 'AutoField', nullable: false, isReadOnly: true, description: null },
+        name: { fieldName: 'name', fieldType: 'CharField', nullable: true, isReadOnly: false, description: null },
+        timestamp: { fieldName: 'timestamp', fieldType: 'DateTimeField', nullable: true, isReadOnly: false, description: null }
     }
 
     constructor(data: TimestampedModelFields) {
@@ -1487,6 +1671,16 @@ export class TimestampedModel implements TimestampedModelFields {
 
     public pk(): number {
         return this.id
+    }
+
+    public toJSON() {
+        return this.pk()
+    }
+
+    public fieldData(): TimestampedModelFields {
+        let fieldData = {}
+        Object.keys(TimestampedModel.FIELD_SCHEMAS).map((fieldName) => fieldData[fieldName] = this[fieldName])
+        return fieldData as TimestampedModelFields
     }
 
     public static setDetailLink(makeDetailLink: (pk: number) => string) {
@@ -1504,8 +1698,10 @@ export class TimestampedModel implements TimestampedModelFields {
         return TimestampedModelQuerySet.get(this.pk(), ...prefetchKeys)
     }
 
-    public async update(data: Partial<TimestampedModelFields>): Promise<ServerPayload<TimestampedModel>> {
-        let [responseData, statusCode, err] = await serverClient.post(`timestamped-model/${this.pk()}/update/`, data);
+    public async update(data: Partial<TimestampedModelFields>, ...prefetchKeys: TimestampedModelPrefetchKey[]): Promise<ServerPayload<TimestampedModel>> {
+        let urlQuery = "";
+        if (prefetchKeys) { urlQuery += "&prefetch=" + JSON.stringify(prefetchKeys) }
+        let [responseData, statusCode, err] = await serverClient.post(`timestamped-model/${this.pk()}/update/`, data, urlQuery);
         if (statusCode in SuccessfulHttpStatusCodes) {
             return [new TimestampedModel(responseData), responseData, statusCode, err]
         }
@@ -1524,3 +1720,15 @@ export class TimestampedModel implements TimestampedModelFields {
 
 
 }
+
+
+// -------------------------
+// Types
+//
+// -------------------------
+
+export type ServerModel = Thing | ThingOneToOneTarget | ThingChild | ThingChildChild | TimestampedModel
+
+export type ServerModelClass = typeof Thing | typeof ThingOneToOneTarget | typeof ThingChild | typeof ThingChildChild | typeof TimestampedModel
+
+export type ServerModelQueryset = ThingQuerySet | ThingOneToOneTargetQuerySet | ThingChildQuerySet | ThingChildChildQuerySet | TimestampedModelQuerySet

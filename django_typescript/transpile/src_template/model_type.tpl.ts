@@ -31,12 +31,12 @@ export class __$queryset_name__{
         this.excludedLookups = excludedLookups;
     }
 
-    private _clone(): __$queryset_name__{
+    public clone(): __$queryset_name__{
         const clone = new __$queryset_name__()
         clone.lookups = this.lookups;
         clone._prefetch = this._prefetch;
         clone._orderBy = this._orderBy;
-        clone._or = this._or;
+        clone._or = JSON.parse(JSON.stringify(this._or));
         clone.excludedLookups = this.excludedLookups;
         return clone;
     }
@@ -64,7 +64,7 @@ export class __$queryset_name__{
     }
 
     public filter(lookups: Partial<__$lookups_interface_name__>): __$queryset_name__{
-        const clone = this._clone();
+        const clone = this.clone();
         clone.lookups = _.merge(clone.lookups, lookups);
         return clone
     }

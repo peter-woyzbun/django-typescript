@@ -110,7 +110,7 @@ class ModelType(object):
 
     @classmethod
     def as_type(cls) -> 'ModelType':
-        type_ = cls(model_cls=cls._MODEL_CLS,create_permissions=cls._CREATE_PERMISSIONS,
+        type_ = cls(model_cls=cls._MODEL_CLS, create_permissions=cls._CREATE_PERMISSIONS,
                     get_permissions=cls._GET_PERMISSIONS, delete_permissions=cls._DELETE_PERMISSIONS,
                     update_permissions=cls._UPDATE_PERMISSIONS, serializer_field_kwargs=cls._SERIALIZER_FIELD_KWARGS,
                     one_to_one_proxy_fields=cls._ONE_TO_ONE_PROXY_FIELDS, property_fields=cls._PROPERTY_FIELDS)

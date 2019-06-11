@@ -9,6 +9,9 @@ from django_typescript.transpile import templates
 from django_typescript.transpile.model_type import ModelTypeTranspiler
 from django_typescript.transpile.object_type import ObjectTypeTranspiler
 from django_typescript.interface import Interface
+from django_typescript.transpile.model_type.common import (model_prefetch_type_name,
+                                                           model_lookups_name,
+                                                           model_queryset_name)
 
 
 # =================================
@@ -69,6 +72,9 @@ class Transpiler(object):
         models_template = TypeScriptTemplate.open(templates.MODELS_TEMPLATE_FILE)
         source = models_template.render(
             field_types=" | ".join([f"'{field_type}'" for field_type in set(field_types)]),
+            model_types=" | ".join([f"{model_type.model_name}" for model_type in self.interface.model_types()]),
+            model_class_types=" | ".join([f"typeof {model_type.model_name}" for model_type in self.interface.model_types()]),
+            model_queryset_types=" | ".join([f"{model_queryset_name(model_type.model_cls)}" for model_type in self.interface.model_types()]),
             models="\n".join(model_type_sources)
         )
         models_file.write(source)

@@ -63,12 +63,12 @@ export class ServerClient {
      * Send a POST request to given url.
      *
      */
-    public async post(url: string, postData?: object) {
+    public async post(url: string, postData?: object, urlQuery?) {
         let headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         };
-        return this.request(this._buildUrl(url), this._requestOptions(RequestMethod.POST, headers, JSON.stringify(postData)));
+        return this.request(this._buildUrl(url, urlQuery), this._requestOptions(RequestMethod.POST, headers, JSON.stringify(postData)));
     }
 
     /**

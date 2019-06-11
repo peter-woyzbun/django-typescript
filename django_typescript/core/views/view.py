@@ -1,4 +1,6 @@
-from rest_framework.decorators import api_view
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.decorators import api_view, permission_classes as add_permission_classes
+from rest_framework.settings import api_settings
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -26,5 +28,7 @@ class View(object):
         if self.permission_classes:
             view_func.permission_classes = self.permission_classes
         view = api_view([self.REQUEST_METHOD])(view_func)
+        view = add_permission_classes(self.permission_classes)(view)
+        view.authentication_classes =  api_settings.DEFAULT_AUTHENTICATION_CLASSES
         return view
 

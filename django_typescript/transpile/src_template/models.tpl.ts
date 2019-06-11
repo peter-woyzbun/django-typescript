@@ -55,3 +55,15 @@ const flattenLookups = function(ob) {
 /*<
 {{ models }}
 >*/
+
+
+// -------------------------
+// Types
+//
+// -------------------------
+
+export type ServerModel = '{{ model_types }}'
+
+export type ServerModelClass = '{{ model_class_types }}'
+
+export type ServerModelQueryset = '{{ model_queryset_types }}'

@@ -1,13 +1,15 @@
 import json
 
 from django.test import TestCase, override_settings
+from rest_framework.permissions import BasePermission
 from django.urls import reverse
+from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from rest_framework import status
 
 from django_typescript import interface
 
-from .models import Thing, ThingChild
+from .models import Thing, ThingChild, GenericModel
 
 
 # =================================
@@ -29,9 +31,21 @@ class ThingType(interface.ModelType, model_cls=Thing):
             raise interface.ValidationError({'name': 'Name invalid.'})
 
 
+class GenericModelCreatePermission(BasePermission):
+
+    def has_permission(self, request, view):
+        return request.user.is_staff
+
+
+class GenericModelType(interface.ModelType, model_cls=GenericModel, create_permissions=(GenericModelCreatePermission, )):
+
+    pass
+
+
 class Interface(interface.Interface, transpile_dest=''):
     things = ThingType.as_type()
     child_things = interface.ModelType(model_cls=ThingChild)
+    generic_models = GenericModelType.as_type()
 
 
 urlpatterns = Interface.urlpatterns()
@@ -55,6 +69,20 @@ class TestModelTypeViews(TestCase):
         view_url = reverse('thing:get', kwargs={'pk': thing.id})
         response = self.client.get(view_url)
         self.assertEqual('test', response.data['name'])
+
+    def test_create_no_permission(self):
+        test_user = User.objects.create(username='test')
+        self.client.force_authenticate(user=test_user)
+        view_url = reverse('generic_model:create')
+        response = self.client.post(view_url, data={}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_create_permission(self):
+        test_user = User.objects.create(username='test', is_staff=True)
+        self.client.force_authenticate(user=test_user)
+        view_url = reverse('generic_model:create')
+        response = self.client.post(view_url, data={}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_create_view(self):
         data = {'name': 'test'}
