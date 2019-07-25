@@ -29,6 +29,6 @@ class View(object):
             view_func.permission_classes = self.permission_classes
         view = api_view([self.REQUEST_METHOD])(view_func)
         view = add_permission_classes(self.permission_classes)(view)
-        view.authentication_classes =  api_settings.DEFAULT_AUTHENTICATION_CLASSES
+        view.authentication_classes = api_settings.DEFAULT_AUTHENTICATION_CLASSES
         return view
 
